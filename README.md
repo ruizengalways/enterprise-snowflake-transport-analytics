@@ -4,9 +4,9 @@ Reference domain project for event-oriented and near-real-time data engineering.
 
 ## Current status
 
-The repository is now a thin executable domain shell rather than a README-only placeholder.
+This repository is a thin domain project that consumes the shared framework through immutable revisions.
 
-Implemented in source/static CI:
+Implemented in source/static CI includes:
 
 ```text
 config/project.yml
@@ -21,13 +21,14 @@ dbt/macros/target_wrappers.sql
 .github/workflows/metadata-ci.yml
 .github/workflows/dbt-static-ci.yml
 .github/workflows/pr-workspace.yml
+.github/workflows/deploy.yml
 ```
 
-No live Snowflake dbt run or project-CI workspace execution has happened yet. Kafka Connector and direct Snowpipe Streaming remain intentionally deferred.
+No live Snowflake dbt deployment or project-CI workspace execution has happened yet. Kafka Connector and direct Snowpipe Streaming remain intentionally deferred.
 
 ## Workload intent
 
-Transport will demonstrate high-frequency events, out-of-order/late data, burst handling, near-real-time freshness, streaming ingestion choices and workload-specific SLOs without forcing downstream redesign when ingestion technology changes.
+Transport will demonstrate high-frequency events, out-of-order/late data, burst handling, near-real-time freshness, streaming-ingestion choices and workload-specific SLOs without forcing downstream redesign when ingestion technology changes.
 
 ## Current first dataset contract
 
@@ -36,8 +37,13 @@ Transport will demonstrate high-frequency events, out-of-order/late data, burst 
 ```text
 source_system:       gtfs_realtime
 load_strategy:       append_only
-business key:        vehicle_id (RAW contract identity field)
+business identity:   vehicle_id
 watermark:           event_timestamp
+capture archetype:   full_change
+capture fidelity:    full_event
+checkpoint:          source_position
+ordering:            event_timestamp
+idempotency:         vehicle_id + event_timestamp
 change semantics:    append
 freshness warning:   5 minutes
 freshness error:     15 minutes
@@ -48,11 +54,18 @@ The RAW grain is one row per vehicle-position event. Metadata describes stable t
 
 ## Framework consumption
 
-This repo consumes `enterprise-snowflake-data-project-framework` through immutable revisions.
+The framework owns reusable technical mechanics:
 
-The framework owns shared metadata validation, workspace/query-tag utilities, dbt physical target resolution, reusable static CI and future generic loading/DQ/reconciliation mechanics.
+- metadata schemas and semantic validation;
+- workspace/query-tag utilities;
+- dbt physical target/context resolution;
+- standard load/capture/checkpoint/quality primitives;
+- reusable SCD consumers where needed by future Transport datasets;
+- reusable static CI, PR workspace and stable deployment workflows.
 
-The Transport repo owns its RAW contracts, dataset configuration, business SQL and later ingestion-specific configuration.
+Transport owns its RAW contracts, dataset configuration, business SQL and later ingestion-specific configuration.
+
+The exact currently approved framework SHA is pinned in `dbt/packages.yml` and all workflow callers. Cross-repository release status is tracked centrally in `enterprise-snowflake-platform-infra/docs/CURRENT_CONTEXT.md` rather than duplicated here.
 
 ## dbt target model
 
@@ -63,23 +76,28 @@ The shared resolver supplies:
 ```text
 DEV personal -> DEV_TRANSPORT / WH_TRANSPORT_TRANSFORM / <DEVELOPER>_<LAYER>
 PR CI        -> CI_TRANSPORT  / WH_TRANSPORT_CI        / PR_<NUMBER>_<LAYER>
-UAT          -> UAT_TRANSPORT / stable layer schemas
-PROD         -> PROD_TRANSPORT / stable layer schemas
+DEV deploy   -> DEV_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
+UAT deploy   -> UAT_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
+PROD deploy  -> PROD_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
 ```
 
-The checked-in profile contains no password/private key. Human DEV defaults to external-browser auth; machine targets use Snowflake workload identity with short-lived OIDC tokens when live execution is enabled.
+The checked-in profile contains no password/private key. Human DEV uses interactive authentication; machine CI/deployment targets use Snowflake workload identity with short-lived GitHub OIDC tokens.
 
-## CI
+## CI and delivery
 
 `Metadata CI` validates project/dataset/RAW contract metadata using a pinned framework action.
 
-`dbt Static CI` installs pinned dbt versions, resolves an offline CI target, installs the pinned framework package and runs `dbt parse` without connecting to Snowflake.
+`dbt Static CI` installs pinned dbt/framework dependencies, resolves an offline CI target and runs project parsing/contract checks without connecting to Snowflake.
 
-`PR Workspace` is a thin caller for the framework workspace lifecycle and becomes live only after the DEV project-CI identity/GitHub Environment is applied/configured.
+`PR Workspace` is a thin caller for guarded `PR_<n>_*` workspace creation/drop through `SU_GITHUB_TRANSPORT_CI -> AR_TRANSPORT_CI`. It becomes live only after the DEV project identity and GitHub Environment `ci` are configured.
+
+`Deploy` is a thin manual caller for the framework stable deployment workflow. It accepts `dev`, `uat` or `prod` plus a full project Git SHA. The framework verifies the SHA belongs to `main` history, checks out the exact revision, verifies the dbt framework pin, enters the protected target GitHub Environment and authenticates as `SU_GITHUB_TRANSPORT_DEPLOY -> AR_TRANSPORT_DEPLOY`.
+
+Promotion uses the same reviewed project SHA across DEV -> UAT -> PROD; there are no environment branches.
 
 ## Future ingestion comparison
 
-Both future paths must converge on the same logical RAW contract:
+Both future ingestion paths must converge on this same logical RAW contract:
 
 ```text
 Transport producer -> direct Snowpipe Streaming -> RAW contract
@@ -91,6 +109,8 @@ or:
 Transport producer -> Kafka -> Snowflake Kafka Connector -> RAW contract
 ```
 
-Normally one path is active for the comparison. Switching ingestion mechanism must not require downstream dbt redesign.
+Normally one path is active for a comparison. Switching ingestion mechanism must not require downstream dbt redesign.
 
-For current cross-repository status, read `enterprise-snowflake-platform-infra/docs/CURRENT_CONTEXT.md` first, then `docs/PROJECT_BLUEPRINT.md` in that repository.
+Producer/runtime code belongs in `enterprise-snowflake-demo-source-systems`; Snowflake/project ingestion configuration belongs here when implementation begins.
+
+For current cross-repository status and live blockers, read `enterprise-snowflake-platform-infra/docs/CURRENT_CONTEXT.md` first, then `docs/PROJECT_BLUEPRINT.md` in that repository.
