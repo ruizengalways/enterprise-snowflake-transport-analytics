@@ -1,0 +1,16 @@
+schema_version: 1
+dataset:
+  id: vehicle_position
+  owner_team: transport-data
+  raw_contract: contracts/raw/vehicle_position.yml
+  load_strategy: append_only
+  implementation: standard
+  watermark_column: event_timestamp
+  freshness:
+    warn_after_minutes: 5
+    error_after_minutes: 15
+  reconciliation:
+    enabled: true
+    measures:
+      - row_count
+      - min_max_source_timestamp
