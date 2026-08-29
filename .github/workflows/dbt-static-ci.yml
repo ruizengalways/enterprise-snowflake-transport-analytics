@@ -4,12 +4,16 @@ on:
   pull_request:
     paths:
       - "dbt/**"
+      - "config/**"
+      - "contracts/**"
       - ".github/workflows/dbt-static-ci.yml"
   push:
     branches:
       - main
     paths:
       - "dbt/**"
+      - "config/**"
+      - "contracts/**"
       - ".github/workflows/dbt-static-ci.yml"
 
 permissions:
@@ -26,7 +30,8 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@8d78f2e00b625debc3c848adeb9fc26797b01753
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@3408025d4280d57c3bbed0c295e1686fa7d950ea
         with:
           project-code: TRANSPORT
           project-dir: dbt
+          project-root: .
