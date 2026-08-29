@@ -1,0 +1,6 @@
+schema_version: 1
+project:
+  code: TRANSPORT
+  name: Transport Analytics
+  repository: enterprise-snowflake-transport-analytics
+  owner_team: transport-data
