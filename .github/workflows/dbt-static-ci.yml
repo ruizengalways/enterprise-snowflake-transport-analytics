@@ -30,8 +30,37 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@b1896aa110632e94c21010695ee000c9181d9caf
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@e9608ff96bb152f61c0acf6bfaf725fbe206f267
         with:
           project-code: TRANSPORT
           project-dir: dbt
           project-root: .
+
+      - name: Render Transport operational control contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_operational_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-operational-contract.txt"
+
+      - name: Assert Transport domain isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-operational-contract.txt"
+          grep -qi "from PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_CHECKPOINT" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_ADVANCE_PIPELINE_CHECKPOINT" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_START" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_FINISH" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_RECORD_PIPELINE_CHECK_RESULT" "$FILE"
+          if grep -qi "call PLATFORM_CONTROL.OPERATIONS.ADVANCE_PIPELINE_CHECKPOINT" "$FILE"; then
+            echo "Transport runtime contract must not call the generic checkpoint procedure." >&2
+            exit 1
+          fi
+          if grep -qi "merge into PLATFORM_CONTROL.OPERATIONS.PIPELINE_RUN" "$FILE"; then
+            echo "Transport runtime contract must not write directly to the shared run ledger." >&2
+            exit 1
+          fi
