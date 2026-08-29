@@ -28,4 +28,4 @@ jobs:
           persist-credentials: false
 
       - name: Validate metadata with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@3055ae7d7e1d7d6b269e2ef96bf8c9c1d49a6e02
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@50cb4caa328d11e5cff208faddd953362c769695
