@@ -1,0 +1,39 @@
+schema_version: 1
+contract:
+  source_system: gtfs_realtime
+  entity: vehicle_position
+  grain: one row per vehicle position event
+  business_key:
+    - vehicle_id
+  source_timestamp: event_timestamp
+  columns:
+    - name: vehicle_id
+      type: VARCHAR
+      nullable: false
+      classification: internal
+    - name: event_timestamp
+      type: TIMESTAMP_NTZ
+      nullable: false
+      classification: internal
+    - name: latitude
+      type: FLOAT
+      nullable: false
+      classification: public
+    - name: longitude
+      type: FLOAT
+      nullable: false
+      classification: public
+    - name: route_id
+      type: VARCHAR
+      nullable: true
+      classification: public
+    - name: ingested_at
+      type: TIMESTAMP_NTZ
+      nullable: false
+      classification: internal
+  change_semantics:
+    mode: append
+    delete_semantics: none
+  cadence: streaming
+  retention_days: 30
+  breaking_change_policy: versioned_contract
