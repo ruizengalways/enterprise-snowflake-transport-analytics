@@ -14,9 +14,9 @@ permissions:
 
 jobs:
   workspace:
-    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/pr-workspace.yml@f21fe2b00c20d56f45d7673ac79ff5aa1029338c
+    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/pr-workspace.yml@b1896aa110632e94c21010695ee000c9181d9caf
     with:
       project_code: TRANSPORT
       pr_number: ${{ github.event.pull_request.number }}
       action: ${{ github.event.action == 'closed' && 'drop' || 'create' }}
-      framework_ref: f21fe2b00c20d56f45d7673ac79ff5aa1029338c
+      framework_ref: b1896aa110632e94c21010695ee000c9181d9caf
