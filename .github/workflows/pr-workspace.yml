@@ -1,0 +1,22 @@
+name: PR Workspace
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  workspace:
+    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/pr-workspace.yml@7ffafbc83ec7da154f036613541bf34b8a913e1a
+    with:
+      project_code: TRANSPORT
+      pr_number: ${{ github.event.pull_request.number }}
+      action: ${{ github.event.action == 'closed' && 'drop' || 'create' }}
+      framework_ref: 7ffafbc83ec7da154f036613541bf34b8a913e1a
