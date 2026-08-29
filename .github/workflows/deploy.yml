@@ -1,0 +1,36 @@
+name: Deploy
+run-name: Deploy TRANSPORT ${{ inputs.git_sha }} to ${{ inputs.environment }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target Snowflake environment."
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+      git_sha:
+        description: "Full 40-character project Git commit SHA to deploy."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-transport-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@f21fe2b00c20d56f45d7673ac79ff5aa1029338c
+    with:
+      project_code: TRANSPORT
+      environment: ${{ inputs.environment }}
+      git_sha: ${{ inputs.git_sha }}
+      framework_ref: f21fe2b00c20d56f45d7673ac79ff5aa1029338c
+      project_dir: dbt
