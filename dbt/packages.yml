@@ -1,0 +1,4 @@
+packages:
+  - git: https://github.com/ruizengalways/enterprise-snowflake-data-project-framework.git
+    revision: 01ce2fe9fcba3e5084297120703301f0dea4df1a
+    subdirectory: dbt_package
