@@ -22,7 +22,8 @@
         'TRANSPORT',
         'vehicle_status',
         'bootstrap-reference',
-        "parse_json('{\"status\":\"PASS\"}')"
+        'TRUE',
+        "parse_json('{\"check\":\"snapshot_reconciliation\",\"status\":\"PASS\"}')"
     ) -%}
     {%- set commit_sql = enterprise_snowflake_framework.esf_domain_bootstrap_commit_handoff_call_sql(
         'TRANSPORT',
