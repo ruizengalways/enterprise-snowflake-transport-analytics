@@ -26,10 +26,12 @@ The logical entity is a vehicle identified by `vehicle_id`.
 
 Changes to status, depot, or route should create a new history version. Source timestamps and source sequence provide deterministic event ordering but are not themselves treated as business attributes.
 
-A source tombstone closes the active interval. If an older event arrives late, the standard policy is to rebuild the history for only the affected vehicle keys from the append-preserved change feed, rather than patching only the latest row.
+A source tombstone closes the active interval. If an older event arrives late, the standard policy is to rebuild the history for only the affected vehicle keys from an append-preserved full-change/full-event relation, rather than patching only the latest row.
+
+The relation used for that rebuild must retain the complete event history needed for an affected vehicle. The RAW contract's landing-retention setting is not automatically proof of that property; production wiring may use a separate durable event ledger. DEV integration must prove the actual retained relation can reconstruct an affected key before checkpoint advancement is allowed.
 
 ## What static CI proves
 
-Before Snowflake exists, CI can prove that the RAW contract and dataset metadata agree, every referenced column exists, required source ordering is preserved, tracked attributes are explicit, tombstone handling is consistent, and the framework renders both the full history select and affected-key rebuild SQL.
+Before Snowflake exists, CI can prove that the RAW contract and dataset metadata agree, every referenced column exists, the capture has full-change/full-event fidelity, required source and idempotency ordering is preserved, tracked attributes are explicit, tombstone handling is consistent, and the framework renders both the full history select and affected-key rebuild SQL.
 
-It cannot prove Snowflake transaction semantics, Streams/Tasks behavior, role grants, concurrency, warehouse performance, or retry behavior. Those remain DEV integration tests once the account is available.
+It cannot prove Snowflake transaction semantics, retained rebuild history, Streams/Tasks behavior, role grants, concurrency, warehouse performance, or retry behavior. Those remain DEV integration tests once the account is available.
