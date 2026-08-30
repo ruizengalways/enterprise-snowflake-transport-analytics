@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@e9608ff96bb152f61c0acf6bfaf725fbe206f267
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@43b4b62c3e93d978ab8a09c2ae42e834f6f4874e
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -64,3 +64,31 @@ jobs:
             echo "Transport runtime contract must not write directly to the shared run ledger." >&2
             exit 1
           fi
+
+      - name: Render Transport SCD2 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_vehicle_status_scd2_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-scd2-contract.txt"
+
+      - name: Assert metadata-driven SCD2 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-scd2-contract.txt"
+          grep -qi "from TRANSPORT_EVENT_RELATION as source_events" "$FILE"
+          grep -qi "hash(" "$FILE"
+          grep -qi 'source_events."status"' "$FILE"
+          grep -qi 'source_events."depot_id"' "$FILE"
+          grep -qi 'source_events."route_id"' "$FILE"
+          grep -qi '"source_updated_at"' "$FILE"
+          grep -qi '"source_sequence"' "$FILE"
+          grep -qi '"source_operation"' "$FILE"
+          grep -qi "_esf_valid_from" "$FILE"
+          grep -qi "begin transaction" "$FILE"
+          grep -qi "delete from TRANSPORT_HISTORY_RELATION" "$FILE"
+          grep -qi "using TRANSPORT_AFFECTED_KEYS_RELATION" "$FILE"
