@@ -1,0 +1,32 @@
+schema_version: 1
+dataset:
+  id: vehicle_status
+  owner_team: transport-data
+  raw_contract: contracts/raw/vehicle_status.yml
+  load_strategy: scd2_merge
+  implementation: standard
+  business_key:
+    - vehicle_id
+  watermark_column: source_updated_at
+  scd2:
+    effective_at_column: source_updated_at
+    order_columns:
+      - source_updated_at
+      - source_sequence
+    tracked_columns:
+      - status
+      - depot_id
+      - route_id
+    operation_column: source_operation
+    delete_values:
+      - D
+    late_arriving_policy: rebuild_affected_keys
+  freshness:
+    warn_after_minutes: 15
+    error_after_minutes: 60
+  reconciliation:
+    enabled: true
+    measures:
+      - row_count
+      - distinct_business_key
+      - min_max_source_timestamp

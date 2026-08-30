@@ -30,8 +30,65 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@b1896aa110632e94c21010695ee000c9181d9caf
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@e0e6f44af1bf97354adf24535729c86a81b3e4d0
         with:
           project-code: TRANSPORT
           project-dir: dbt
           project-root: .
+
+      - name: Render Transport operational control contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_operational_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-operational-contract.txt"
+
+      - name: Assert Transport domain isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-operational-contract.txt"
+          grep -qi "from PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_CHECKPOINT" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_ADVANCE_PIPELINE_CHECKPOINT" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_START" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_FINISH" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_RECORD_PIPELINE_CHECK_RESULT" "$FILE"
+          if grep -qi "call PLATFORM_CONTROL.OPERATIONS.ADVANCE_PIPELINE_CHECKPOINT" "$FILE"; then
+            echo "Transport runtime contract must not call the generic checkpoint procedure." >&2
+            exit 1
+          fi
+          if grep -qi "merge into PLATFORM_CONTROL.OPERATIONS.PIPELINE_RUN" "$FILE"; then
+            echo "Transport runtime contract must not write directly to the shared run ledger." >&2
+            exit 1
+          fi
+
+      - name: Render Transport SCD2 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_vehicle_status_scd2_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-scd2-contract.txt"
+
+      - name: Assert metadata-driven SCD2 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-scd2-contract.txt"
+          grep -qi "from TRANSPORT_EVENT_RELATION as source_rows" "$FILE"
+          grep -qi "hash(" "$FILE"
+          grep -qi 'source_rows."status"' "$FILE"
+          grep -qi 'source_rows."depot_id"' "$FILE"
+          grep -qi 'source_rows."route_id"' "$FILE"
+          grep -qi '"source_updated_at"' "$FILE"
+          grep -qi '"source_sequence"' "$FILE"
+          grep -qi '"source_operation"' "$FILE"
+          grep -qi "_esf_valid_from" "$FILE"
+          grep -qi "begin transaction" "$FILE"
+          grep -qi "delete from TRANSPORT_HISTORY_RELATION" "$FILE"
+          grep -qi "using TRANSPORT_AFFECTED_KEYS_RELATION" "$FILE"
