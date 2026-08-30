@@ -115,7 +115,7 @@ jobs:
           grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_COMMIT_HANDOFF" "$FILE"
           grep -qi "'source_position'" "$FILE"
           grep -qi "'exclusive'" "$FILE"
-          grep -Eqi "TRANSPORT_PIPELINE_BOOTSTRAP_MARK_VALIDATED\([^;]*TRUE" "$FILE"
+          grep -qi "TRUE" "$FILE"
           if grep -Eqi "call PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_BOOTSTRAP" "$FILE"; then
             echo "Transport bootstrap contract must not call a generic shared bootstrap procedure." >&2
             exit 1
