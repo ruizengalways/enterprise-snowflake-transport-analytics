@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@43b4b62c3e93d978ab8a09c2ae42e834f6f4874e
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@bad64b892193646ec0d28f773a50561b086bcb39
         with:
           project-code: TRANSPORT
           project-dir: dbt
