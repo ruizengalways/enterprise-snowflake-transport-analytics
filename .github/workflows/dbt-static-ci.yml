@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@9393d18be2a177704b37a10342da30ca209b5da5
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@e0e6f44af1bf97354adf24535729c86a81b3e4d0
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -80,11 +80,11 @@ jobs:
         run: |
           set -euo pipefail
           FILE="${RUNNER_TEMP}/transport-scd2-contract.txt"
-          grep -qi "from TRANSPORT_EVENT_RELATION as source_events" "$FILE"
+          grep -qi "from TRANSPORT_EVENT_RELATION as source_rows" "$FILE"
           grep -qi "hash(" "$FILE"
-          grep -qi 'source_events."status"' "$FILE"
-          grep -qi 'source_events."depot_id"' "$FILE"
-          grep -qi 'source_events."route_id"' "$FILE"
+          grep -qi 'source_rows."status"' "$FILE"
+          grep -qi 'source_rows."depot_id"' "$FILE"
+          grep -qi 'source_rows."route_id"' "$FILE"
           grep -qi '"source_updated_at"' "$FILE"
           grep -qi '"source_sequence"' "$FILE"
           grep -qi '"source_operation"' "$FILE"
