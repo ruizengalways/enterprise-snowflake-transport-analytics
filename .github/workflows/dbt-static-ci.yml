@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@e0e6f44af1bf97354adf24535729c86a81b3e4d0
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@f16ca40c8bed0c81b9e43bc86c8f3a0941249c46
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -92,3 +92,35 @@ jobs:
           grep -qi "begin transaction" "$FILE"
           grep -qi "delete from TRANSPORT_HISTORY_RELATION" "$FILE"
           grep -qi "using TRANSPORT_AFFECTED_KEYS_RELATION" "$FILE"
+
+      - name: Render Transport bootstrap handoff contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_vehicle_status_bootstrap_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-bootstrap-contract.txt"
+
+      - name: Assert Transport bootstrap domain contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-bootstrap-contract.txt"
+          grep -qi "from PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_START" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_MARK_SNAPSHOT_LANDED" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_MARK_VALIDATED" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_COMMIT_HANDOFF" "$FILE"
+          grep -qi "'source_position'" "$FILE"
+          grep -qi "'exclusive'" "$FILE"
+          grep -qi "TRUE" "$FILE"
+          if grep -Eqi "call PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_BOOTSTRAP" "$FILE"; then
+            echo "Transport bootstrap contract must not call a generic shared bootstrap procedure." >&2
+            exit 1
+          fi
+          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_(BOOTSTRAP|CHECKPOINT)" "$FILE"; then
+            echo "Transport bootstrap contract must not write shared control tables directly." >&2
+            exit 1
+          fi
