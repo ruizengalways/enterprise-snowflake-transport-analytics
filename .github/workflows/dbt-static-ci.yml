@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@0bf9495f665ef438d61446251c7ad21ea877680d
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@f16ca40c8bed0c81b9e43bc86c8f3a0941249c46
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -115,6 +115,7 @@ jobs:
           grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_BOOTSTRAP_COMMIT_HANDOFF" "$FILE"
           grep -qi "'source_position'" "$FILE"
           grep -qi "'exclusive'" "$FILE"
+          grep -Eqi "TRANSPORT_PIPELINE_BOOTSTRAP_MARK_VALIDATED\([^;]*TRUE" "$FILE"
           if grep -Eqi "call PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_BOOTSTRAP" "$FILE"; then
             echo "Transport bootstrap contract must not call a generic shared bootstrap procedure." >&2
             exit 1
