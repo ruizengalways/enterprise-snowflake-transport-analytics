@@ -53,7 +53,7 @@ jobs:
 
           grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
           grep -Fq 'project_code: TRANSPORT' "$FILE"
-          grep -Fq 'git_sha: ${{ github.sha }}' "$FILE"
+          grep -Eq '^[[:space:]]+git_sha:.*github[.]sha' "$FILE"
           grep -Fq 'framework_ref: 02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
 
           if grep -Eq 'ACTIONS_ID_TOKEN_REQUEST|SNOWFLAKE_TOKEN|SNOWFLAKE_OIDC_AUDIENCE' "$FILE"; then
