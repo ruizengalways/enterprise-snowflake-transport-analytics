@@ -1,116 +1,80 @@
 # Enterprise Snowflake Transport Analytics
 
-Reference domain project for event-oriented and near-real-time data engineering.
+Domain repository for Transport-owned Snowflake analytics.
 
-## Current status
+## Start here
 
-This repository is a thin domain project that consumes the shared framework through immutable revisions.
+For a new conversation/session, read:
 
-Implemented in source/static CI includes:
+1. `docs/CURRENT_CONTEXT.md` — current branch/PR stack, framework pin, CI status, blockers and next gate.
+2. `docs/DEPLOYMENT.md` — one-click deployment path and environment prerequisites.
+3. `docs/datasets/vehicle-status.md` — reference CDC/SCD2/bootstrap contract and source-specific boundary.
 
-```text
-config/project.yml
-config/datasets/vehicle_position.yml
-contracts/raw/vehicle_position.yml
+Human documentation lives under `docs/`. Machine configuration lives under `config/` and `contracts/`. Reusable technical implementation belongs in `enterprise-snowflake-data-project-framework` rather than being copied here.
 
-dbt/dbt_project.yml
-dbt/packages.yml
-dbt/profiles.yml
-dbt/macros/target_wrappers.sql
+## Domain database shape
 
-.github/workflows/metadata-ci.yml
-.github/workflows/dbt-static-ci.yml
-.github/workflows/pr-workspace.yml
-.github/workflows/deploy.yml
-```
-
-No live Snowflake dbt deployment or project-CI workspace execution has happened yet. Kafka Connector and direct Snowpipe Streaming remain intentionally deferred.
-
-## Workload intent
-
-Transport will demonstrate high-frequency events, out-of-order/late data, burst handling, near-real-time freshness, streaming-ingestion choices and workload-specific SLOs without forcing downstream redesign when ingestion technology changes.
-
-## Current first dataset contract
-
-`vehicle_position` is the first technical contract:
+Stable environment databases are owned by the Transport data product:
 
 ```text
-source_system:       gtfs_realtime
-load_strategy:       append_only
-business identity:   vehicle_id
-watermark:           event_timestamp
-capture archetype:   full_change
-capture fidelity:    full_event
-checkpoint:          source_position
-ordering:            event_timestamp
-idempotency:         vehicle_id + event_timestamp
-change semantics:    append
-freshness warning:   5 minutes
-freshness error:     15 minutes
-contract policy:     versioned_contract
+DEV_TRANSPORT
+UAT_TRANSPORT
+PROD_TRANSPORT
 ```
 
-The RAW grain is one row per vehicle-position event. Metadata describes stable technical behaviour only; transport business calculations and semantic rules stay explicit project SQL/tests.
-
-## Framework consumption
-
-The framework owns reusable technical mechanics:
-
-- metadata schemas and semantic validation;
-- workspace/query-tag utilities;
-- dbt physical target/context resolution;
-- standard load/capture/checkpoint/quality primitives;
-- reusable SCD consumers where needed by future Transport datasets;
-- reusable static CI, PR workspace and stable deployment workflows.
-
-Transport owns its RAW contracts, dataset configuration, business SQL and later ingestion-specific configuration.
-
-The exact currently approved framework SHA is pinned in `dbt/packages.yml` and all workflow callers. Cross-repository release status is tracked centrally in `enterprise-snowflake-platform-infra/docs/CURRENT_CONTEXT.md` rather than duplicated here.
-
-## dbt target model
-
-Model SQL must not hard-code `DEV_TRANSPORT`, `CI_TRANSPORT`, `UAT_TRANSPORT` or `PROD_TRANSPORT`.
-
-The shared resolver supplies:
+They use the shared Medallion schema vocabulary:
 
 ```text
-DEV personal -> DEV_TRANSPORT / WH_TRANSPORT_TRANSFORM / <DEVELOPER>_<LAYER>
-PR CI        -> CI_TRANSPORT  / WH_TRANSPORT_CI        / PR_<NUMBER>_<LAYER>
-DEV deploy   -> DEV_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
-UAT deploy   -> UAT_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
-PROD deploy  -> PROD_TRANSPORT / WH_TRANSPORT_TRANSFORM / stable schemas
+BRONZE
+SILVER_STAGING
+SILVER_INTERMEDIATE
+SILVER_CANONICAL
+GOLD_MARTS
+GOLD_SEMANTIC
+DQ
 ```
 
-The checked-in profile contains no password/private key. Human DEV uses interactive authentication; machine CI/deployment targets use Snowflake workload identity with short-lived GitHub OIDC tokens.
+Ordinary new physical sources do not require a new database or Terraform-created source schema. Source identity remains in Git metadata and Bronze object naming unless governance requires explicit isolation.
 
-## CI and delivery
-
-`Metadata CI` validates project/dataset/RAW contract metadata using a pinned framework action.
-
-`dbt Static CI` installs pinned dbt/framework dependencies, resolves an offline CI target and runs project parsing/contract checks without connecting to Snowflake.
-
-`PR Workspace` is a thin caller for guarded `PR_<n>_*` workspace creation/drop through `SU_GITHUB_TRANSPORT_CI -> AR_TRANSPORT_CI`. It becomes live only after the DEV project identity and GitHub Environment `ci` are configured.
-
-`Deploy` is a thin manual caller for the framework stable deployment workflow. It accepts `dev`, `uat` or `prod` plus a full project Git SHA. The framework verifies the SHA belongs to `main` history, checks out the exact revision, verifies the dbt framework pin, enters the protected target GitHub Environment and authenticates as `SU_GITHUB_TRANSPORT_DEPLOY -> AR_TRANSPORT_DEPLOY`.
-
-Promotion uses the same reviewed project SHA across DEV -> UAT -> PROD; there are no environment branches.
-
-## Future ingestion comparison
-
-Both future ingestion paths must converge on this same logical RAW contract:
+## Current datasets
 
 ```text
-Transport producer -> direct Snowpipe Streaming -> RAW contract
+vehicle_position
+  event/position dataset; not modeled as SCD2
+
+vehicle_status
+  reference full-change CDC contract
+  metadata-driven SCD2 history
+  safe initial snapshot -> incremental handoff contract
 ```
 
-or:
+`fleet_mssql` is a reference source contract only. This repository does not yet claim a live SQL Server connection or live LSN/consistent-snapshot implementation.
+
+## Control plane
+
+The project uses domain-scoped platform surfaces only:
 
 ```text
-Transport producer -> Kafka -> Snowflake Kafka Connector -> RAW contract
+PLATFORM_CONTROL.OPERATIONS.TRANSPORT_*
+PLATFORM_CONTROL.CONFIG.TRANSPORT_*
 ```
 
-Normally one path is active for a comparison. Switching ingestion mechanism must not require downstream dbt redesign.
+Project roles must not directly DML the shared PLATFORM_CONTROL base tables.
 
-Producer/runtime code belongs in `enterprise-snowflake-demo-source-systems`; Snowflake/project ingestion configuration belongs here when implementation begins.
+Git remains the dataset configuration source of truth. Successful stable deployments register immutable validated config snapshots through the Transport-scoped CONFIG procedure.
 
-For current cross-repository status and live blockers, read `enterprise-snowflake-platform-infra/docs/CURRENT_CONTEXT.md` first, then `docs/PROJECT_BLUEPRINT.md` in that repository.
+## Delivery
+
+PR CI uses framework-generated `PR_<number>_<MEDALLION_LAYER>` workspaces.
+
+Stable DEV/UAT/PROD deployment is exposed through `.github/workflows/deploy.yml`. After the change is on `main`, use GitHub Actions -> Deploy -> Run workflow and choose only the target environment. The workflow passes the selected `main` revision SHA to the pinned reusable framework deployment contract.
+
+The reusable deployment validates main history, builds dbt from validated Git metadata, authenticates via protected-environment WIF, runs `dbt build`, then registers dataset config snapshots only after a successful build.
+
+See `docs/DEPLOYMENT.md` for the exact operational path and prerequisites.
+
+## Proof boundary
+
+Static CI proves metadata validation, dbt offline rendering, domain-scoped operational/config API usage, SCD2 contract rendering and bootstrap contract rendering.
+
+Live Snowflake WIF, platform grants, cross-domain denial, source snapshot/CDC consistency, retries/recovery and performance remain DEV integration gates.

@@ -30,7 +30,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@f16ca40c8bed0c81b9e43bc86c8f3a0941249c46
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -62,6 +62,29 @@ jobs:
           fi
           if grep -qi "merge into PLATFORM_CONTROL.OPERATIONS.PIPELINE_RUN" "$FILE"; then
             echo "Transport runtime contract must not write directly to the shared run ledger." >&2
+            exit 1
+          fi
+
+      - name: Render Transport dataset config snapshot contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_vehicle_status_config_snapshot_contract_sql \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt \
+            --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-config-snapshot-contract.txt"
+
+      - name: Assert Transport config snapshot isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-config-snapshot-contract.txt"
+          grep -qi "from PLATFORM_CONTROL.CONFIG.TRANSPORT_DATASET_CONFIG_SNAPSHOT" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.CONFIG.TRANSPORT_REGISTER_DATASET_CONFIG_SNAPSHOT" "$FILE"
+          grep -qi "vehicle_status" "$FILE"
+          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.CONFIG\.DATASET_CONFIG_SNAPSHOT" "$FILE"; then
+            echo "Transport config contract must not DML the shared config snapshot table directly." >&2
             exit 1
           fi
 
