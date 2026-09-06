@@ -7,6 +7,7 @@ on:
       - "config/**"
       - "contracts/**"
       - ".github/workflows/dbt-static-ci.yml"
+      - ".github/workflows/deploy.yml"
   push:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - "config/**"
       - "contracts/**"
       - ".github/workflows/dbt-static-ci.yml"
+      - ".github/workflows/deploy.yml"
 
 permissions:
   contents: read
@@ -35,6 +37,29 @@ jobs:
           project-code: TRANSPORT
           project-dir: dbt
           project-root: .
+
+      - name: Assert one-click deploy wrapper contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=".github/workflows/deploy.yml"
+          INPUTS="$(sed -n '/^[[:space:]]*inputs:/,/^permissions:/p' "$FILE")"
+
+          grep -Fq 'environment:' <<<"$INPUTS"
+          if grep -Fq 'git_sha:' <<<"$INPUTS"; then
+            echo "Transport Deploy UI must not expose a manual git_sha input." >&2
+            exit 1
+          fi
+
+          grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
+          grep -Fq 'project_code: TRANSPORT' "$FILE"
+          grep -Fq 'git_sha: ${{ github.sha }}' "$FILE"
+          grep -Fq 'framework_ref: 02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
+
+          if grep -Eq 'ACTIONS_ID_TOKEN_REQUEST|SNOWFLAKE_TOKEN|SNOWFLAKE_OIDC_AUDIENCE' "$FILE"; then
+            echo "Transport wrapper must delegate WIF/token handling to the reusable framework workflow." >&2
+            exit 1
+          fi
 
       - name: Render Transport operational control contract
         shell: bash
