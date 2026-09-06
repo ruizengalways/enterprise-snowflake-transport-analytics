@@ -14,6 +14,8 @@ After the desired revision is merged to `main`:
 
 There is no project SHA text box. The wrapper passes the selected workflow revision (`github.sha`) to the reusable framework workflow, which independently verifies that the SHA is reachable from current `main` history.
 
+Static CI protects this wrapper boundary: it rejects a manual `git_sha` workflow input, requires the approved framework pin and `github.sha` handoff, and rejects copied WIF/token logic in the domain wrapper.
+
 ## What the reusable workflow does
 
 ```text
@@ -55,16 +57,20 @@ PLATFORM_CONTROL.CONFIG.TRANSPORT_*
 
 The platform-infra repository owns those objects. This domain repository does not bootstrap account-level infrastructure.
 
-## Promotion
+## Promotion semantics
 
-Promote the same project Git revision across environments:
+The architectural target remains immutable promotion:
 
 ```text
-same SHA
+same project SHA
 DEV -> UAT -> PROD
 ```
 
-Do not use environment branches or rebuild different source revisions for each environment.
+The current environment-only wrapper proves and deploys the SHA of the ref selected when the manual workflow is started. For the normal browser flow that means the current selected branch head. Therefore it is already suitable for one-click deployment of the current `main` revision, but it is **not yet a complete same-SHA promotion orchestrator**.
+
+If `main` advances after a DEV deployment, starting a later UAT or PROD run from the newer `main` would deploy a different SHA. Do not describe that as promotion of the DEV release.
+
+A later release/promotion workflow should carry forward the exact previously approved/deployed SHA (for example through an immutable release ref or automated deployment record) without introducing DEV/UAT/PROD source branches. That orchestration should be implemented after the live DEV deployment path is proven rather than guessed in static infrastructure now.
 
 ## Fail-closed behavior
 
@@ -83,3 +89,5 @@ A failed build does not create a successful deployment config snapshot.
 ## Current live boundary
 
 The workflow is implemented, but live execution still depends on the real Snowflake DEV/UAT/PROD accounts and GitHub Environment WIF configuration. Static CI success is not a claim that a live deployment has already occurred.
+
+The next deployment milestone is live DEV. Exact cross-environment promotion orchestration follows that proof.
