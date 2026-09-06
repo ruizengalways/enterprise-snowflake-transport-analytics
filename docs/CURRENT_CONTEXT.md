@@ -90,20 +90,22 @@ GitHub Actions -> Deploy -> Run workflow -> choose dev/uat/prod
 
 No SHA is manually typed. The selected workflow revision SHA is passed to the reusable framework workflow and must still be reachable from current `main`. After successful `dbt build`, validated dataset config snapshots are registered through Transport-scoped owner-rights procedures.
 
+Static CI protects the wrapper contract: the Deploy UI must not expose a manual `git_sha`, must reference `github.sha`, must pin the approved framework SHA, and must not copy OIDC/token handling into the domain repo.
+
 See `docs/DEPLOYMENT.md`.
 
 ## Static proof
 
-PR #3 implementation head:
+Latest verified source/static head before this context-only edit:
 
 ```text
-c96260554487630f15972affc7282073138de8e2
-Metadata CI: SUCCESS
-dbt Static CI: SUCCESS
-PR Workspace: FAILURE because live ci Snowflake/WIF configuration is not yet available
+b771d036d162a983342344557f37f96e914126b1
+Metadata CI #36: SUCCESS
+dbt Static CI #46: SUCCESS
+PR Workspace #27: FAILURE before Snowflake work because ci WIF configuration is not available
 ```
 
-Static CI proves operational and CONFIG domain isolation, Medallion target/profile compatibility, SCD2 rendering and bootstrap rendering.
+Static CI proves operational and CONFIG domain isolation, Medallion target/profile compatibility, one-click Deploy wrapper boundaries, SCD2 rendering and bootstrap rendering.
 
 Live DEV remains required for real authentication, platform grants, cross-domain denial, source snapshot/CDC consistency, transaction/concurrency behavior, retries/recovery and SCD2 execution.
 
