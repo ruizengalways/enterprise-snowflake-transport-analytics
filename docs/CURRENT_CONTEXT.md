@@ -11,32 +11,25 @@ PR #1  feature/domain-operational-contract
 PR #2  feature/bootstrap-handoff-contract
   safe vehicle_status initial snapshot -> incremental handoff
 
-current stacked branch
-  feature/medallion-one-click-deploy
-  adds Medallion naming, config snapshot control and simplified deployment
+PR #3  feature/medallion-one-click-deploy
+  Medallion naming, config snapshot control and simplified deployment
 ```
 
-The current branch is intentionally based on PR #2. Retarget after lower PRs merge.
+PR #3 is intentionally stacked on PR #2. Retarget stacked PRs after lower dependencies merge.
 
 ## Framework pin
 
-Current immutable framework revision for this branch:
+Verified immutable framework implementation used by this branch:
 
 ```text
 02e3fca78b453e8a39a1722ce96b15dfc98d7cf8
+Framework CI #175: SUCCESS
+Bootstrap Contract CI #7: SUCCESS
 ```
 
-That framework revision has green Framework CI and Bootstrap Contract CI and includes:
+It includes Medallion workspace/target naming, explicit `scd1_merge`, metadata-driven SCD2, bootstrap handoff, deterministic dataset config snapshots, `PLATFORM_CONTROL.CONFIG` domain API helpers, and post-build config registration.
 
-```text
-Medallion workspace/target naming
-explicit scd1_merge
-metadata-driven SCD2
-bootstrap handoff
-deterministic dataset config snapshots
-PLATFORM_CONTROL.CONFIG domain API helpers
-stable deployment context + post-build config registration
-```
+Later framework branch commits may be documentation-only; do not repin merely because handoff prose changed.
 
 ## Domain database contract
 
@@ -53,7 +46,7 @@ stable deployment context + post-build config registration
 
 Ordinary new sources share `BRONZE`; a new source should not require a Terraform-created database/schema by default.
 
-## Control-plane contract
+## Control plane
 
 Runtime state:
 
@@ -68,9 +61,9 @@ PLATFORM_CONTROL.CONFIG.TRANSPORT_DATASET_CONFIG_SNAPSHOT
 PLATFORM_CONTROL.CONFIG.TRANSPORT_REGISTER_DATASET_CONFIG_SNAPSHOT
 ```
 
-Git is configuration truth. Snowflake CONFIG is immutable audit/readback state.
+Git is configuration truth. Snowflake CONFIG is immutable deployment audit/readback state.
 
-## Current reference datasets
+## Reference datasets
 
 `vehicle_status`:
 
@@ -83,45 +76,43 @@ history: metadata-driven SCD2
 late arrival: rebuild_affected_keys
 ```
 
-`vehicle_position` is an event/position dataset and is deliberately not modeled as SCD2.
+`vehicle_position` is an append/event/position dataset and is deliberately not modeled as SCD2.
 
 No live SQL Server source connection is claimed yet.
 
 ## Deployment UX
 
-After this branch is merged to `main`:
+After PR #3 is merged to `main`:
 
 ```text
 GitHub Actions -> Deploy -> Run workflow -> choose dev/uat/prod
 ```
 
-No SHA is manually typed. The selected workflow revision SHA is passed to the reusable framework deploy workflow and must still pass the immutable-main-history guard.
+No SHA is manually typed. The selected workflow revision SHA is passed to the reusable framework workflow and must still be reachable from current `main`. After successful `dbt build`, validated dataset config snapshots are registered through Transport-scoped owner-rights procedures.
 
-The successful deploy path ends by registering all validated dataset config snapshots. See `docs/DEPLOYMENT.md`.
+See `docs/DEPLOYMENT.md`.
 
-## Proof boundary
+## Static proof
 
-Expected static proof on this branch:
+PR #3 implementation head:
 
 ```text
-Metadata CI
-DBT Static CI
-  operational domain isolation
-  CONFIG domain isolation
-  SCD2 rendering
-  bootstrap rendering
+c96260554487630f15972affc7282073138de8e2
+Metadata CI: SUCCESS
+dbt Static CI: SUCCESS
+PR Workspace: FAILURE because live ci Snowflake/WIF configuration is not yet available
 ```
 
-PR Workspace still requires a real Snowflake `ci` GitHub Environment/WIF configuration and may fail for that external reason.
+Static CI proves operational and CONFIG domain isolation, Medallion target/profile compatibility, SCD2 rendering and bootstrap rendering.
 
-Live DEV remains required for real account auth, platform grants, cross-domain denial, source snapshot/CDC consistency, transaction/concurrency behavior, retries/recovery and SCD2 execution.
+Live DEV remains required for real authentication, platform grants, cross-domain denial, source snapshot/CDC consistency, transaction/concurrency behavior, retries/recovery and SCD2 execution.
 
 ## Cross-repository dependencies
 
 ```text
-framework PR #4 / green SHA above
-platform-infra PR #2 / Medallion + PLATFORM_CONTROL.CONFIG
+framework PR #4 / verified implementation SHA above
 platform-infra PR #1 / domain operational/bootstrap surfaces
+platform-infra PR #2 / Medallion schemas + PLATFORM_CONTROL.CONFIG
 ```
 
-Do not describe this as live-deployed until platform DEV bootstrap and WIF are complete.
+Do not describe this repository as live-deployed until platform DEV bootstrap and WIF are complete.
