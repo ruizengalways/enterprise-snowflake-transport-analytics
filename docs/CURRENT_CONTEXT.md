@@ -4,7 +4,7 @@ Concise handoff for a new conversation.
 
 ## Architectural rule
 
-Transport now has a **framework-independent portable core**. Source contracts and synthetic data generation must work on any Snowflake platform without the enterprise framework, `PLATFORM_CONTROL`, Terraform, WIF, enterprise RBAC, or enterprise database/warehouse naming.
+Transport has a **framework-independent portable core**. Source contracts and synthetic data generation must work on any Snowflake platform without the enterprise framework, `PLATFORM_CONTROL`, Terraform, WIF, enterprise RBAC, or enterprise database/warehouse naming.
 
 ```text
 portable Transport core
@@ -29,14 +29,14 @@ PR #1 domain operational contract
 PR #2 bootstrap handoff
 PR #3 Medallion/config/one-click enterprise deploy
 PR #4 generation-aware full reset
-PR #5 framework-free portable synthetic data
+PR #5 framework-free portable synthetic data + stateful source simulator
 ```
 
 PR #5 is stacked on PR #4 while the lower stack remains open.
 
 ## Portable demo — PR #5
 
-Run on any caller-selected Snowflake database/warehouse:
+Bulk deterministic source data:
 
 ```text
 standalone/sql/00_setup.sql
@@ -45,7 +45,7 @@ standalone/sql/20_generate_vehicle_position.sql
 standalone/sql/90_validate.sql
 ```
 
-Creates only:
+Bulk objects:
 
 ```text
 DEMO_TRANSPORT.VEHICLE_STATUS_CDC
@@ -53,17 +53,33 @@ DEMO_TRANSPORT.VEHICLE_STATUS_CURRENT
 DEMO_TRANSPORT.VEHICLE_POSITION_EVENTS
 ```
 
-The SQL creates no database/warehouse/role, contains no framework or `PLATFORM_CONTROL` reference, and aligns with the repository RAW contracts.
-
-Verified portability source/static head:
+Stateful incremental source simulator:
 
 ```text
-c898d8dec1397a2d51036b3ea4f5c9fb4a944f83
-Standalone SQL CI #1: SUCCESS
-PR Workspace #37: blocked by enterprise ci environment configuration
+standalone/sql/30_incremental_vehicle_status_simulator.sql
+
+DEMO_TRANSPORT.VEHICLE_STATUS_SIM_CDC
+DEMO_TRANSPORT.VEHICLE_STATUS_SIM_CURRENT
+DEMO_TRANSPORT.VEHICLE_STATUS_SIM_STATE
+DEMO_TRANSPORT.RESET_VEHICLE_STATUS_SIMULATOR()
+DEMO_TRANSPORT.ADVANCE_VEHICLE_STATUS_SIMULATOR()
 ```
 
-Later branch commits are documentation-only. The PR Workspace failure belongs to the optional enterprise adapter and does not affect standalone data generation.
+The simulator uses native Snowflake Scripting (`LANGUAGE SQL`), not Python. `RESET` returns `current_batch` to `-1`. The first `ADVANCE` emits deterministic insert records for 500 vehicles. Later calls emit deterministic update records for a bounded subset; later batches also emit a small number of delete tombstones. Event timestamps and source sequences are deterministic so reset-and-replay is reproducible.
+
+The simulator models **source CDC only**. It does not implement SCD2 itself. A consuming pipeline can use the same changes to test SCD2, SCD1 or another target strategy.
+
+The standalone SQL creates no database/warehouse/role and contains no enterprise framework or control-plane dependency. Bulk and incremental simulator objects are separate and can coexist.
+
+Verified simulator source/static head:
+
+```text
+5f957b9d8ca3cd7c5734d9d1c0b34b0eca8fcf78
+Standalone SQL CI #8: SUCCESS
+PR Workspace #44: FAILURE at Load approved Snowflake environment configuration
+```
+
+This `CURRENT_CONTEXT.md` update is documentation-only after that verified source head. The PR Workspace failure belongs to the optional enterprise adapter and occurs before checkout/Snowflake execution.
 
 ## Optional enterprise adapter
 
@@ -80,7 +96,7 @@ Enterprise stable databases use `<ENV>_TRANSPORT` plus Medallion schemas. Those 
 
 `vehicle_status` remains the full-change CDC/SCD2/bootstrap reference dataset. `vehicle_position` remains append/event.
 
-The standalone demo supplies synthetic evidence for both without claiming a live SQL Server or GTFS source.
+The standalone bulk generator and stateful simulator provide synthetic source evidence without claiming a live SQL Server or GTFS source.
 
 ## Full reset enterprise adapter
 
@@ -123,8 +139,15 @@ plain Snowflake database
 no framework package
 no PLATFORM_CONTROL
 no enterprise roles/naming
- -> execute standalone SQL
- -> verify row counts, keys and CDC operations
+ -> execute standalone setup + simulator SQL
+ -> RESET simulator
+ -> ADVANCE initial batch
+ -> inspect CDC/current state
+ -> ADVANCE multiple change batches
+ -> verify deterministic I/U/D evolution
+ -> optionally run any consuming pipeline between ADVANCE calls
 ```
+
+Current Snowflake Scripting variable-binding and `SQLROWCOUNT` placement have been checked against Snowflake documentation, but static CI is not a live Snowflake compiler/runtime proof.
 
 Enterprise live acceptance separately requires real DEV Snowflake/WIF for grants, control plane, reset generation rollover and pipelines.
