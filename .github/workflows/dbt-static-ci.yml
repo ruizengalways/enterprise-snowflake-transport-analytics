@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@801d319776ad7ac24042d323db6e0c1c5f75f2b1
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@8afe208bd911a59b9334add78a53878ffea93087
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -49,10 +49,10 @@ jobs:
             echo "Transport Deploy UI must not expose a manual git_sha input." >&2
             exit 1
           fi
-          grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@801d319776ad7ac24042d323db6e0c1c5f75f2b1' "$FILE"
+          grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@8afe208bd911a59b9334add78a53878ffea93087' "$FILE"
           grep -Fq 'project_code: TRANSPORT' "$FILE"
           grep -Eq '^[[:space:]]+git_sha:.*github[.]sha' "$FILE"
-          grep -Fq 'framework_ref: 801d319776ad7ac24042d323db6e0c1c5f75f2b1' "$FILE"
+          grep -Fq 'framework_ref: 8afe208bd911a59b9334add78a53878ffea93087' "$FILE"
           if grep -Eq 'ACTIONS_ID_TOKEN_REQUEST|SNOWFLAKE_TOKEN|SNOWFLAKE_OIDC_AUDIENCE' "$FILE"; then
             echo "Transport wrapper must delegate WIF/token handling to the reusable framework workflow." >&2
             exit 1
