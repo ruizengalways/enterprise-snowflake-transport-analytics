@@ -1,5 +1,5 @@
 -- Stateful synthetic vehicle_status source simulator.
--- Pure Snowflake SQL Scripting: no Python, dbt, framework or PLATFORM_CONTROL.
+-- Pure Snowflake SQL Scripting; standalone and platform-agnostic.
 --
 -- Usage:
 --   CALL DEMO_TRANSPORT.RESET_VEHICLE_STATUS_SIMULATOR();
