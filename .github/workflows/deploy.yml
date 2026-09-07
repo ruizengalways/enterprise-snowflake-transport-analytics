@@ -23,10 +23,10 @@ concurrency:
 
 jobs:
   deploy:
-    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8
+    uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@801d319776ad7ac24042d323db6e0c1c5f75f2b1
     with:
       project_code: TRANSPORT
       environment: ${{ inputs.environment }}
       git_sha: ${{ github.sha }}
-      framework_ref: 02e3fca78b453e8a39a1722ce96b15dfc98d7cf8
+      framework_ref: 801d319776ad7ac24042d323db6e0c1c5f75f2b1
       project_dir: dbt
