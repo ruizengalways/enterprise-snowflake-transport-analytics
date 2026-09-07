@@ -22,7 +22,7 @@
     reason='static reset contract',
     git_sha=none
 ) -%}
-    {{ enterprise_snowflake_framework.esf_dataset_full_reset_sql(
+    {%- set sql = enterprise_snowflake_framework.esf_dataset_full_reset_sql(
         'TRANSPORT',
         reset_id,
         'vehicle_status',
@@ -30,7 +30,9 @@
         transport_vehicle_status_reset_relations(),
         git_sha,
         "OBJECT_CONSTRUCT('reset_type', 'FULL_RESET', 'dataset', 'vehicle_status')"
-    ) }}
+    ) -%}
+    {%- do log(sql, info=true) -%}
+    {{ return(sql) }}
 {%- endmacro %}
 
 {% macro transport_vehicle_status_full_reset(reset_id, reason, git_sha=none) -%}
