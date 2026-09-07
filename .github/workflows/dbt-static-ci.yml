@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
 
       - name: Parse with pinned framework
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/dbt-static-check@801d319776ad7ac24042d323db6e0c1c5f75f2b1
         with:
           project-code: TRANSPORT
           project-dir: dbt
@@ -44,18 +44,15 @@ jobs:
           set -euo pipefail
           FILE=".github/workflows/deploy.yml"
           INPUTS="$(sed -n '/^[[:space:]]*inputs:/,/^permissions:/p' "$FILE")"
-
           grep -Fq 'environment:' <<<"$INPUTS"
           if grep -Fq 'git_sha:' <<<"$INPUTS"; then
             echo "Transport Deploy UI must not expose a manual git_sha input." >&2
             exit 1
           fi
-
-          grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
+          grep -Fq 'uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/workflows/project-deploy.yml@801d319776ad7ac24042d323db6e0c1c5f75f2b1' "$FILE"
           grep -Fq 'project_code: TRANSPORT' "$FILE"
           grep -Eq '^[[:space:]]+git_sha:.*github[.]sha' "$FILE"
-          grep -Fq 'framework_ref: 02e3fca78b453e8a39a1722ce96b15dfc98d7cf8' "$FILE"
-
+          grep -Fq 'framework_ref: 801d319776ad7ac24042d323db6e0c1c5f75f2b1' "$FILE"
           if grep -Eq 'ACTIONS_ID_TOKEN_REQUEST|SNOWFLAKE_TOKEN|SNOWFLAKE_OIDC_AUDIENCE' "$FILE"; then
             echo "Transport wrapper must delegate WIF/token handling to the reusable framework workflow." >&2
             exit 1
@@ -67,8 +64,7 @@ jobs:
           set -euo pipefail
           dbt run-operation transport_operational_contract_sql \
             --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
-            --project-dir dbt \
-            --profiles-dir dbt \
+            --project-dir dbt --profiles-dir dbt \
             | tee "${RUNNER_TEMP}/transport-operational-contract.txt"
 
       - name: Assert Transport domain isolation contract
@@ -81,14 +77,8 @@ jobs:
           grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_START" "$FILE"
           grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_PIPELINE_RUN_FINISH" "$FILE"
           grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_RECORD_PIPELINE_CHECK_RESULT" "$FILE"
-          if grep -qi "call PLATFORM_CONTROL.OPERATIONS.ADVANCE_PIPELINE_CHECKPOINT" "$FILE"; then
-            echo "Transport runtime contract must not call the generic checkpoint procedure." >&2
-            exit 1
-          fi
-          if grep -qi "merge into PLATFORM_CONTROL.OPERATIONS.PIPELINE_RUN" "$FILE"; then
-            echo "Transport runtime contract must not write directly to the shared run ledger." >&2
-            exit 1
-          fi
+          if grep -qi "call PLATFORM_CONTROL.OPERATIONS.ADVANCE_PIPELINE_CHECKPOINT" "$FILE"; then exit 1; fi
+          if grep -qi "merge into PLATFORM_CONTROL.OPERATIONS.PIPELINE_RUN" "$FILE"; then exit 1; fi
 
       - name: Render Transport dataset config snapshot contract
         shell: bash
@@ -96,8 +86,7 @@ jobs:
           set -euo pipefail
           dbt run-operation transport_vehicle_status_config_snapshot_contract_sql \
             --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
-            --project-dir dbt \
-            --profiles-dir dbt \
+            --project-dir dbt --profiles-dir dbt \
             | tee "${RUNNER_TEMP}/transport-config-snapshot-contract.txt"
 
       - name: Assert Transport config snapshot isolation contract
@@ -108,8 +97,32 @@ jobs:
           grep -qi "from PLATFORM_CONTROL.CONFIG.TRANSPORT_DATASET_CONFIG_SNAPSHOT" "$FILE"
           grep -qi "call PLATFORM_CONTROL.CONFIG.TRANSPORT_REGISTER_DATASET_CONFIG_SNAPSHOT" "$FILE"
           grep -qi "vehicle_status" "$FILE"
-          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.CONFIG\.DATASET_CONFIG_SNAPSHOT" "$FILE"; then
-            echo "Transport config contract must not DML the shared config snapshot table directly." >&2
+          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.CONFIG\.DATASET_CONFIG_SNAPSHOT" "$FILE"; then exit 1; fi
+
+      - name: Render Transport full reset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          dbt run-operation transport_vehicle_status_full_reset_contract_sql \
+            --args '{"reset_id":"static-reset","reason":"static reset proof","git_sha":"0000000000000000000000000000000000000000"}' \
+            --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
+            --project-dir dbt --profiles-dir dbt \
+            | tee "${RUNNER_TEMP}/transport-reset-contract.txt"
+
+      - name: Assert Transport full reset boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/transport-reset-contract.txt"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_DATASET_RESET_START" "$FILE"
+          grep -qi "truncate table if exists CI_TRANSPORT.BRONZE.VEHICLE_STATUS" "$FILE"
+          grep -qi "truncate table if exists CI_TRANSPORT.SILVER_STAGING.VEHICLE_STATUS" "$FILE"
+          grep -qi "truncate table if exists CI_TRANSPORT.SILVER_INTERMEDIATE.VEHICLE_STATUS" "$FILE"
+          grep -qi "truncate table if exists CI_TRANSPORT.SILVER_CANONICAL.VEHICLE_STATUS" "$FILE"
+          grep -qi "truncate table if exists CI_TRANSPORT.GOLD_MARTS.VEHICLE_STATUS" "$FILE"
+          grep -qi "call PLATFORM_CONTROL.OPERATIONS.TRANSPORT_DATASET_RESET_COMPLETE" "$FILE"
+          if grep -Eqi "(delete|update|merge)[[:space:]].*PLATFORM_CONTROL\.OPERATIONS\.(PIPELINE_|DATASET_)" "$FILE"; then
+            echo "Transport reset contract must not directly mutate shared control tables." >&2
             exit 1
           fi
 
@@ -119,8 +132,7 @@ jobs:
           set -euo pipefail
           dbt run-operation transport_vehicle_status_scd2_contract_sql \
             --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
-            --project-dir dbt \
-            --profiles-dir dbt \
+            --project-dir dbt --profiles-dir dbt \
             | tee "${RUNNER_TEMP}/transport-scd2-contract.txt"
 
       - name: Assert metadata-driven SCD2 contract
@@ -147,8 +159,7 @@ jobs:
           set -euo pipefail
           dbt run-operation transport_vehicle_status_bootstrap_contract_sql \
             --vars "$(cat "${RUNNER_TEMP}/esf-dbt-vars.json")" \
-            --project-dir dbt \
-            --profiles-dir dbt \
+            --project-dir dbt --profiles-dir dbt \
             | tee "${RUNNER_TEMP}/transport-bootstrap-contract.txt"
 
       - name: Assert Transport bootstrap domain contract
@@ -164,11 +175,5 @@ jobs:
           grep -qi "'source_position'" "$FILE"
           grep -qi "'exclusive'" "$FILE"
           grep -qi "TRUE" "$FILE"
-          if grep -Eqi "call PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_BOOTSTRAP" "$FILE"; then
-            echo "Transport bootstrap contract must not call a generic shared bootstrap procedure." >&2
-            exit 1
-          fi
-          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_(BOOTSTRAP|CHECKPOINT)" "$FILE"; then
-            echo "Transport bootstrap contract must not write shared control tables directly." >&2
-            exit 1
-          fi
+          if grep -Eqi "call PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_BOOTSTRAP" "$FILE"; then exit 1; fi
+          if grep -Eqi "(insert|update|merge|delete)[[:space:]].*PLATFORM_CONTROL\.OPERATIONS\.PIPELINE_(BOOTSTRAP|CHECKPOINT)" "$FILE"; then exit 1; fi
