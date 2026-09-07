@@ -20,6 +20,7 @@ class StandaloneTransportSqlTests(unittest.TestCase):
                 "00_setup.sql",
                 "10_generate_vehicle_status.sql",
                 "20_generate_vehicle_position.sql",
+                "30_incremental_vehicle_status_simulator.sql",
                 "90_validate.sql",
                 "99_cleanup.sql",
             },
@@ -69,6 +70,20 @@ class StandaloneTransportSqlTests(unittest.TestCase):
             "INGESTED_AT",
         ):
             self.assertIn(column, position_sql)
+
+    def test_incremental_simulator_is_native_sql_and_stateful(self) -> None:
+        simulator_sql = (SQL_DIR / "30_incremental_vehicle_status_simulator.sql").read_text(encoding="utf-8").upper()
+        self.assertIn("CREATE OR REPLACE PROCEDURE DEMO_TRANSPORT.RESET_VEHICLE_STATUS_SIMULATOR()", simulator_sql)
+        self.assertIn("CREATE OR REPLACE PROCEDURE DEMO_TRANSPORT.ADVANCE_VEHICLE_STATUS_SIMULATOR()", simulator_sql)
+        self.assertIn("LANGUAGE SQL", simulator_sql)
+        self.assertNotIn("LANGUAGE PYTHON", simulator_sql)
+        self.assertIn("VEHICLE_STATUS_SIM_STATE", simulator_sql)
+        self.assertIn("CURRENT_BATCH", simulator_sql)
+        self.assertIn("VEHICLE_STATUS_SIM_CDC", simulator_sql)
+        self.assertIn("VEHICLE_STATUS_SIM_CURRENT", simulator_sql)
+        self.assertIn("'I'", simulator_sql)
+        self.assertIn("'U'", simulator_sql)
+        self.assertIn("'D'", simulator_sql)
 
 
 if __name__ == "__main__":
