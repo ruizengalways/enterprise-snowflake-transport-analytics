@@ -55,15 +55,15 @@ DEMO_TRANSPORT.VEHICLE_POSITION_EVENTS
 
 The SQL creates no database/warehouse/role, contains no framework or `PLATFORM_CONTROL` reference, and aligns with the repository RAW contracts.
 
-Verified portability head:
+Verified portability source/static head:
 
 ```text
 c898d8dec1397a2d51036b3ea4f5c9fb4a944f83
 Standalone SQL CI #1: SUCCESS
-PR Workspace #37: still blocked by enterprise ci environment configuration
+PR Workspace #37: blocked by enterprise ci environment configuration
 ```
 
-The PR Workspace failure belongs to the optional enterprise adapter and does not affect standalone data generation.
+Later branch commits are documentation-only. The PR Workspace failure belongs to the optional enterprise adapter and does not affect standalone data generation.
 
 ## Optional enterprise adapter
 
@@ -110,12 +110,9 @@ Terraform CI #167: SUCCESS
 Platform Control SQL CI #37: SUCCESS
 
 Transport reset
-a649021fa5f84e580361e86d9bf8c66664e581a04
+649021fa5f84e580361e86d9bf8c66664e581a04
+dbt Static CI #53: SUCCESS
 ```
-
-Note: the Transport reset SHA above should be read as `649021fa5f84e580361e86d9bf8c66664e581a04`; the leading `a` in this prose is not part of the commit SHA.
-
-dbt Static CI #53: SUCCESS.
 
 ## Live boundaries
 
