@@ -81,7 +81,7 @@ BEGIN
       FROM DEMO_TRANSPORT.VEHICLE_STATUS_SIM_STATE
      WHERE simulator_name = 'vehicle_status';
 
-    v_event_time := DATEADD('minute', :v_batch * 15, '2026-01-01 00:00:00'::TIMESTAMP_NTZ);
+    v_event_time := DATEADD('minute', v_batch * 15, '2026-01-01 00:00:00'::TIMESTAMP_NTZ);
 
     IF (v_batch = 0) THEN
         INSERT INTO DEMO_TRANSPORT.VEHICLE_STATUS_SIM_CDC (
