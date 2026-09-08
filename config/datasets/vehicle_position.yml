@@ -1,11 +1,13 @@
-schema_version: 1
+schema_version: 2
 dataset:
   id: vehicle_position
   owner_team: transport-data
   raw_contract: contracts/raw/vehicle_position.yml
-  load_strategy: append_only
-  implementation: standard
-  watermark_column: event_timestamp
+  load:
+    strategy: append_only
+    execution:
+      mode: dbt_batch
+    watermark_column: event_timestamp
   freshness:
     warn_after_minutes: 5
     error_after_minutes: 15
