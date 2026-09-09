@@ -1,0 +1,28 @@
+name: Standalone SQL CI
+
+on:
+  pull_request:
+    paths:
+      - "standalone/**"
+      - ".github/workflows/standalone-sql-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "standalone/**"
+      - ".github/workflows/standalone-sql-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  portable-contract:
+    name: Validate framework-free synthetic SQL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run standalone contract tests
+        run: python -m unittest discover -s standalone/tests -p 'test_*.py' -v

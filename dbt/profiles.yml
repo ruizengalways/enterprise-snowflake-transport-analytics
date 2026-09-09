@@ -9,7 +9,7 @@ transport_analytics:
       authenticator: "{{ env_var('DBT_AUTHENTICATOR', 'externalbrowser') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
       threads: 4
     ci:
       type: snowflake
@@ -21,7 +21,7 @@ transport_analytics:
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
       threads: 4
     uat:
       type: snowflake
@@ -33,7 +33,7 @@ transport_analytics:
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
       threads: 4
     prod:
       type: snowflake
@@ -45,5 +45,5 @@ transport_analytics:
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
       threads: 4
