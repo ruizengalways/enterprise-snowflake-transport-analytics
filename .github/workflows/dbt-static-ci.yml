@@ -13,6 +13,13 @@ permissions:
 jobs:
   dbt-offline:
     runs-on: ubuntu-latest
+    env:
+      ESF_ENVIRONMENT: dev
+      SNOWFLAKE_ACCOUNT: offline
+      SNOWFLAKE_USER: offline
+      DBT_DATABASE: OFFLINE_TRANSPORT
+      DBT_WAREHOUSE: OFFLINE_TRANSFORM
+      DBT_DEFAULT_SCHEMA: SILVER_STAGING
     steps:
       - uses: actions/checkout@v7.0.1
         with:
