@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: ruizengalways/enterprise-snowflake-data-project-framework
-          ref: 0e9dedd2761d93cac74835ec6e6ab07b56da2eaa
+          ref: ed47b7215f36e71272bcd3ad32128f9d5065c128
           path: framework
           persist-credentials: false
       - uses: actions/setup-python@v7.0.0
@@ -45,6 +45,7 @@ jobs:
           grep -Fq 'strategy: scd2' config/datasets/vehicle_status.yml
           grep -Fq 'strategy: append_only' config/datasets/vehicle_position.yml
           grep -Fq 'type: dynamic_table' config/datasets/depot_fleet_status.yml
+          grep -Fq 'schema_version: 2' contracts/raw/vehicle_status.yml
           grep -Fq "where is_current = true" dbt/models/silver_canonical/vehicle_status_current.sql
           if grep -Fq 'is_current' dbt/models/gold_marts/depot_fleet_status.sql; then exit 1; fi
-          if grep -R -n -E 'load_strategy|scd1_merge|scd2_merge|scd2_snapshot|scd2_stream_task' config dbt/models; then exit 1; fi
+          if grep -R -n -E 'load_strategy|scd1_merge|scd2_merge|scd2_snapshot|scd2_stream_task|checkpoint_kind' config contracts dbt/models; then exit 1; fi

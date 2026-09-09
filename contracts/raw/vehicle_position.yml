@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 contract:
   source_system: gtfs_realtime
   entity: vehicle_position
@@ -34,15 +34,10 @@ contract:
   change_semantics:
     mode: append
     delete_semantics: none
-  capture:
-    archetype: full_change
-    fidelity: full_event
-    checkpoint_kind: source_position
-    ordering_columns:
-      - event_timestamp
-    idempotency_columns:
-      - vehicle_id
-      - event_timestamp
-  cadence: streaming
-  retention_days: 30
+  capture_fidelity: full_event
+  ordering_columns:
+    - event_timestamp
+  idempotency_key:
+    - vehicle_id
+    - event_timestamp
   breaking_change_policy: versioned_contract

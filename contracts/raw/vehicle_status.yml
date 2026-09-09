@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 contract:
   source_system: fleet_mssql
   entity: vehicle_status
@@ -46,20 +46,11 @@ contract:
     delete_semantics: tombstone
     delete_values:
       - D
-  capture:
-    archetype: full_change
-    fidelity: full_change
-    checkpoint_kind: source_position
-    ordering_columns:
-      - source_sequence
-    idempotency_columns:
-      - vehicle_id
-      - source_sequence
-    bootstrap:
-      mode: snapshot_then_incremental
-      snapshot_consistency: at_handoff_position
-      incremental_start: exclusive
-      reconciliation_required: true
-  cadence: continuous-or-micro-batch
-  retention_days: 30
+  capture_fidelity: full_change
+  ordering_columns:
+    - source_updated_at
+    - source_sequence
+  idempotency_key:
+    - vehicle_id
+    - source_sequence
   breaking_change_policy: versioned_contract
