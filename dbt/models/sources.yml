@@ -1,9 +1,10 @@
 version: 2
 
 sources:
-  - name: bronze_transport
+  - name: silver_transport
     database: "{{ target.database }}"
-    schema: BRONZE
+    schema: "{{ env_var('DBT_SILVER_SCHEMA', 'SILVER_CANONICAL') }}"
     tables:
-      - name: vehicle_status
+      - name: vehicle_status_current
+      - name: vehicle_status_history
       - name: vehicle_position

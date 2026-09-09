@@ -1,0 +1,7 @@
+# Ordered, committed Silver deployment surface.
+silver_processing/vehicle_status/001_objects.sql
+silver_processing/vehicle_status/010_apply.sql
+silver_processing/vehicle_status/030_task.sql
+silver_processing/vehicle_position/001_objects.sql
+silver_processing/vehicle_position/010_apply.sql
+silver_processing/vehicle_position/030_task.sql
