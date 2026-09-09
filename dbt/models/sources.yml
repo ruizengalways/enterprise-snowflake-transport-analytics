@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: bronze_transport
+    database: "{{ target.database }}"
+    schema: BRONZE
+    tables:
+      - name: vehicle_status
+      - name: vehicle_position

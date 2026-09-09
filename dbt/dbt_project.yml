@@ -1,5 +1,5 @@
 name: transport_analytics
-version: 1.0.0
+version: 2.0.0
 config-version: 2
 profile: transport_analytics
 
@@ -7,6 +7,15 @@ model-paths:
   - models
 macro-paths:
   - macros
+
+models:
+  transport_analytics:
+    silver_staging:
+      +schema: SILVER_STAGING
+    silver_canonical:
+      +schema: SILVER_CANONICAL
+    gold_marts:
+      +schema: GOLD_MARTS
 
 clean-targets:
   - target

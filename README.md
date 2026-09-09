@@ -1,69 +1,38 @@
-# Enterprise Snowflake Transport Analytics
+# Transport Analytics
 
-Transport data-product repository. The **portable core is framework-independent**: the repository can generate and expose synthetic Transport source data on any Snowflake platform without the enterprise data framework, `PLATFORM_CONTROL`, Terraform, or enterprise-specific RBAC/database naming.
-
-## Start here
-
-1. `standalone/README.md` — run synthetic Transport data on any Snowflake account.
-2. `docs/PORTABILITY.md` — portable-core versus optional enterprise-integration boundary.
-3. `docs/CURRENT_CONTEXT.md` — current PR stack, CI status and live blockers.
-4. `docs/DEPLOYMENT.md` — optional enterprise-platform deployment path.
-5. `docs/datasets/vehicle-status.md` — CDC/SCD2/bootstrap reference contract.
-
-## Portable core
-
-The portable core is owned by this repository and must not depend on a shared implementation framework:
+Transport is a domain project, not an ingestion framework.
 
 ```text
-contracts/
-config/                 domain metadata
-standalone/             pure Snowflake SQL synthetic sources
-docs/                   domain knowledge and operating guidance
+external transport sources -> ingestion -> BRONZE
+                                      -> SILVER_STAGING
+                                      -> SILVER_CANONICAL
+                                      -> GOLD_MARTS
 ```
 
-To generate demo data, select any Snowflake database/warehouse and run:
+## What a new engineer should see first
 
-```text
-standalone/sql/00_setup.sql
-standalone/sql/10_generate_vehicle_status.sql
-standalone/sql/20_generate_vehicle_position.sql
-standalone/sql/90_validate.sql
-```
+- `config/datasets/vehicle_status.yml`: SCD2 maintenance semantics.
+- `config/datasets/vehicle_position.yml`: append-only event semantics.
+- `dbt/models/silver_staging/`: readable source-faithful SQL after Bronze.
+- `dbt/models/silver_canonical/vehicle_status_history.sql`: authoritative SCD2 input/model.
+- `dbt/models/silver_canonical/vehicle_status_current.sql`: one current-state view for all downstream consumers.
+- `dbt/models/gold_marts/depot_fleet_status.sql`: readable business aggregation, materialized as a Snowflake Dynamic Table.
+- `standalone/`: portable synthetic simulator with zero Framework, PLATFORM_CONTROL, Terraform, or enterprise WIF dependency.
 
-This creates only:
+The project follows `Metadata = HOW TO RUN; SQL = WHAT THE DATA MEANS`. Metadata never describes joins, filters, CASE expressions, window functions, or GROUP BY business logic.
 
-```text
-DEMO_TRANSPORT.VEHICLE_STATUS_CDC
-DEMO_TRANSPORT.VEHICLE_STATUS_CURRENT
-DEMO_TRANSPORT.VEHICLE_POSITION_EVENTS
-```
+## Dataset policies
 
-No enterprise framework installation is needed. `Standalone SQL CI` enforces that these scripts contain no `PLATFORM_CONTROL`, enterprise role/warehouse/database names, or framework references.
+| Dataset | Silver/Gold role | Load | Materialization | Runtime |
+| --- | --- | --- | --- | --- |
+| `vehicle_status` | authoritative history | SCD2 | table | dbt |
+| `vehicle_position` | event history | append-only | table | dbt |
+| `depot_fleet_status` | Gold aggregation | derived | Dynamic Table / ADAPTIVE | Snowflake managed |
 
-## Domain contracts
+Physical warehouse names do not appear in dataset metadata. `compute.workload: transform` is resolved by the platform for each domain/environment.
 
-`vehicle_status` is the reference full-change CDC dataset with metadata-driven SCD2 semantics in the enterprise integration. `vehicle_position` is an append/event dataset and is deliberately not modeled as SCD2.
+## Live acceptance
 
-The standalone synthetic tables align with the repository RAW contracts, so another Snowflake platform can use the same source shapes even if it implements ingestion/transforms differently.
+Static CI validates v2 metadata and parses dbt offline. Live Snowflake deployment/reset/SCD2/Dynamic Table acceptance remains gated by configured WIF environments; do not infer live success from static CI.
 
-## Optional enterprise integration
-
-The existing `dbt/` project and GitHub deployment workflows integrate this portable domain repo with the `enterprise-snowflake` platform. That path may use the enterprise framework for control-plane, deployment, reset, SCD2/bootstrap and WIF conveniences.
-
-It is an **adapter**, not a prerequisite for using the repository or generating demo data. A consumer on another Snowflake platform may ignore the enterprise integration and use the portable contracts/SQL directly.
-
-Enterprise stable databases currently use:
-
-```text
-DEV_TRANSPORT / UAT_TRANSPORT / PROD_TRANSPORT
-BRONZE / SILVER_STAGING / SILVER_INTERMEDIATE / SILVER_CANONICAL
-GOLD_MARTS / GOLD_SEMANTIC / DQ
-```
-
-Those names are enterprise-platform conventions, not requirements of the portable core.
-
-## Proof boundary
-
-Standalone CI proves the synthetic SQL has no enterprise-framework/platform dependency and that expected contract columns are present. Enterprise static CI separately proves the optional platform adapter.
-
-Neither static suite is a live Snowflake execution proof. Real Snowflake WIF, grants, cross-domain denial, reset runtime behavior and source CDC semantics remain live integration gates.
+See `standalone/README.md` for the independent simulator.
