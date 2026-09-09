@@ -88,21 +88,22 @@ DEMO_TRANSPORT.ADVANCE_VEHICLE_STATUS_SIMULATOR()
 
 The simulator models source CDC only. It does not implement SCD2; a consuming pipeline determines target semantics. Reset-and-replay is deterministic and later batches include bounded updates and delete tombstones.
 
-## Full reset enterprise adapter
+## Processing reset enterprise adapter
 
-Generation-aware reset remains available through the domain recovery boundary:
+Generation-aware processing reset is exposed through `dbt/macros/reset_contract.sql` and the domain recovery boundary. It preserves ingestion-owned Bronze evidence and clears only the persisted SCD2 processing state:
 
 ```text
 AR_TRANSPORT_RECOVERY
 ACTIVE generation N
  -> RESETTING
- -> explicit reconstructable Bronze/Silver/Gold cleanup
+ -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY
+ -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS
  -> generation N+1 / READY_FOR_INITIAL_LOAD
- -> normal pipeline reload
+ -> rebuild from retained Bronze evidence
  -> ACTIVE
 ```
 
-Repair/replay remains separate from reset. See `docs/RESET_RUNBOOK.md`.
+The current/staging views are not truncated and the derived Gold Dynamic Table is not treated as an ordinary table. The reset macro rejects prefixed PR/personal workspaces and mismatched environment databases. Repair/replay remains separate from reset. See `docs/RESET_RUNBOOK.md`.
 
 ## Verified static state
 
@@ -135,7 +136,7 @@ configure DEV Snowflake + GitHub Environment WIF
 -> prove PR workspace lifecycle
 -> deploy platform/control-plane prerequisites
 -> run live vehicle_status SCD2 replay/update/delete/reinsert/late-arrival cases
--> prove reset/generation rollover and recovery-role isolation
+-> prove processing reset/generation rollover and recovery-role isolation
 -> run Gold Dynamic Table and stable deployment
 ```
 
