@@ -1,16 +1,12 @@
-# Transport Dataset Full Reset Runbook
+# Transport Dataset Processing Reset Runbook
 
-Use this runbook when a Transport dataset is materially wrong and rebuilding it from the source of truth is faster and safer than targeted repair. Typical examples are dashboard data that is clearly incorrect, a small dataset that can be reloaded quickly, or a broken checkpoint/history state where a clean restart is the lowest-risk recovery path.
+Use this runbook when `vehicle_status` downstream state/history is materially wrong and rebuilding Silver/Gold from already-landed Bronze evidence is safer than targeted repair.
 
-Full reset is deliberately separate from repair/replay.
+This is a **processing full reset**, not an ingestion/source reset. Source -> Bronze is ingestion-owned, so this operation deliberately preserves Bronze evidence.
 
 ## Who can run it
 
-Use `AR_TRANSPORT_RECOVERY`.
-
-This role is intended for Senior Data Engineer+ operators. There is no mandatory multi-person approval chain in the platform implementation. Transport Admin inherits the recovery capability, so recovery does not depend on one specific person being available.
-
-The recovery role can use the Transport transform warehouse, read the Transport domain, truncate Transport tables, and call the Transport reset lifecycle procedures. It does not receive direct DML on shared `PLATFORM_CONTROL` base tables and does not grant cross-domain recovery access.
+Use `AR_TRANSPORT_RECOVERY`. Transport Admin inherits the recovery capability. The recovery role uses the Transport transform warehouse and domain-scoped reset APIs; it does not receive direct DML on shared `PLATFORM_CONTROL` base tables or cross-domain recovery access.
 
 ## Current supported reset
 
@@ -20,86 +16,102 @@ Dataset:
 vehicle_status
 ```
 
-Explicit reconstructable relations:
+The explicit v2 cleanup set is:
 
 ```text
-<ENV>_TRANSPORT.BRONZE.VEHICLE_STATUS
-<ENV>_TRANSPORT.SILVER_STAGING.VEHICLE_STATUS
-<ENV>_TRANSPORT.SILVER_INTERMEDIATE.VEHICLE_STATUS
-<ENV>_TRANSPORT.SILVER_CANONICAL.VEHICLE_STATUS
-<ENV>_TRANSPORT.GOLD_MARTS.VEHICLE_STATUS
+<ENV>_TRANSPORT.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY
+<ENV>_TRANSPORT.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS
 ```
 
-`GOLD_SEMANTIC` is not blindly truncated by the generic helper. Add or change reset objects explicitly in `dbt/macros/reset_contract.sql` when the domain implementation changes.
+Both are tables owned by the SCD2 processing path. The `__ESF_EVENTS` sidecar ledger must be cleared together with history; otherwise a nominal reset could reintroduce old retained event evidence.
+
+The reset intentionally does **not** truncate:
+
+```text
+BRONZE.VEHICLE_STATUS                 ingestion-owned landed evidence
+SILVER_STAGING.STG_VEHICLE_STATUS     view
+SILVER_CANONICAL.VEHICLE_STATUS_CURRENT view
+GOLD_MARTS.DEPOT_FLEET_STATUS         derived Dynamic Table
+```
+
+After Silver history is rebuilt, current-view and Gold consumers derive from the rebuilt state. If Bronze evidence itself is corrupt, stop here and coordinate a separate ingestion-owned recovery/reland procedure before running the processing reset.
+
+## Safety guards
+
+`dbt/macros/reset_contract.sql` fails closed unless all of these are true:
+
+- `ESF_ENVIRONMENT` is exactly `dev`, `uat` or `prod`;
+- `target.database` is the matching `DEV_TRANSPORT`, `UAT_TRANSPORT` or `PROD_TRANSPORT` database;
+- `ESF_SCHEMA_PREFIX` is empty, so the operation cannot be invoked from a prefixed PR/personal workspace;
+- cleanup relations come from the compile-time domain list, never caller-supplied table names.
 
 ## Before reset
 
-1. Confirm the dataset is reconstructable from its source and that a full reload is the intended recovery action.
-2. Record a short incident/recovery reason.
-3. Confirm no current `vehicle_status` pipeline run is still `RUNNING`. The platform will reject reset start if one exists.
-4. Use a new globally unique `reset_id`, for example `transport-vehicle-status-20260907-001`.
-5. Use the deployed/current project Git SHA as `git_sha` when available.
+1. Confirm Bronze contains the source evidence required to rebuild `vehicle_status`.
+2. Confirm a processing full reset is preferable to bounded repair/replay.
+3. Record a short incident/recovery reason.
+4. Confirm no current-generation `vehicle_status` pipeline run is still `RUNNING`; the platform rejects reset start otherwise.
+5. Create a globally unique `reset_id`, for example `transport-vehicle-status-20260909-001`.
+6. Use the deployed/current project Git SHA as `git_sha` when available.
 
-Do not stop ordinary scheduling by editing control tables. Once reset start succeeds the lifecycle becomes `RESETTING`, and normal dataset pipeline starts/checkpoint writes are blocked by the platform until reset completion.
+Do not edit shared control tables to stop scheduling. Once reset start succeeds, lifecycle becomes `RESETTING` and normal dataset pipeline starts/checkpoint writes are blocked until reset completion.
 
 ## Connection context
 
-Use the approved Snowflake account/authentication values for the target environment and set the dbt target context normally used by this repository. The important recovery-specific values are:
+Use the approved Snowflake authentication for the target environment and set:
 
 ```text
 ESF_ENVIRONMENT=<dev|uat|prod>
+ESF_SCHEMA_PREFIX=
 DBT_ROLE=AR_TRANSPORT_RECOVERY
 DBT_DATABASE=<DEV_TRANSPORT|UAT_TRANSPORT|PROD_TRANSPORT>
-DBT_WAREHOUSE=<approved Transport transform warehouse for that environment>
+DBT_WAREHOUSE=<approved Transport transform warehouse>
 ```
 
-Do not hard-code credentials in the repository or command history.
-
-Install the pinned package revision before running the operation if the working copy does not already have dependencies installed:
+Never hard-code credentials in the repository or command history. Install the pinned package revision first if needed:
 
 ```bash
 dbt deps --project-dir dbt --profiles-dir dbt
 ```
 
-## Execute full reset
+## Execute processing reset
 
 From the repository root:
 
 ```bash
 dbt run-operation transport_vehicle_status_full_reset \
   --args '{
-    "reset_id": "transport-vehicle-status-20260907-001",
-    "reason": "vehicle status dashboard data incorrect; clean reload selected",
+    "reset_id": "transport-vehicle-status-20260909-001",
+    "reason": "vehicle status history incorrect; rebuild from retained Bronze evidence",
     "git_sha": "<project-git-sha>"
   }' \
   --project-dir dbt \
   --profiles-dir dbt
 ```
 
-The operation performs this sequence:
+The operation performs:
 
 ```text
 TRANSPORT_DATASET_RESET_START
   -> lifecycle = RESETTING
-  -> truncate the explicit vehicle_status reset relations
+  -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY
+  -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS
   -> TRANSPORT_DATASET_RESET_COMPLETE
   -> generation N + 1
   -> lifecycle = READY_FOR_INITIAL_LOAD
 ```
 
-Old checkpoint/bootstrap/run/check-result records remain on the old generation for audit. The new generation has no previous checkpoint/bootstrap state.
+Old checkpoint/bootstrap/run/check-result rows remain attached to the old generation for audit. The new generation exposes no old checkpoint/bootstrap state.
 
-## If the reset fails midway
+## If reset fails midway
 
-If one of the truncates fails, `RESET_COMPLETE` is not called and the dataset remains `RESETTING`.
+If a truncate fails, `RESET_COMPLETE` is not called and lifecycle remains `RESETTING`. Fix the object/privilege/transient problem and retry with the **same `reset_id`**. A reset ID is retry-safe only while that reset remains `RESETTING`.
 
-Fix the underlying object/privilege/transient problem and rerun the same command with the **same `reset_id`**. The same reset ID is retry-safe only while its status is `RESETTING`.
+Never reuse a completed/ready reset ID for a later incident.
 
-Once a reset reaches `READY_FOR_RELOAD` or `COMPLETED`, reusing that reset ID fails closed before any truncate. Never reuse an old completed reset ID for a later incident; create a new reset ID.
+## Verify control state
 
-## Verify reset state
-
-Using `AR_TRANSPORT_RECOVERY`, inspect only the Transport-scoped control views:
+Using `AR_TRANSPORT_RECOVERY`:
 
 ```sql
 select *
@@ -112,36 +124,17 @@ where dataset_id = 'vehicle_status'
 order by requested_at desc;
 ```
 
-After cleanup completes, expect the current generation to be incremented and lifecycle state to be:
-
-```text
-READY_FOR_INITIAL_LOAD
-```
-
-The reset record should be `READY_FOR_RELOAD` until the fresh main pipeline succeeds.
+After cleanup, expect the new generation lifecycle to be `READY_FOR_INITIAL_LOAD` and the reset record to remain ready for reload until the normal pipeline succeeds.
 
 ## Reload
 
-Run the normal `vehicle_status` main pipeline using the normal deploy/runtime path. Do not manually write a checkpoint to make the dataset look healthy.
+Run the normal `vehicle_status` processing pipeline. Because Bronze was preserved, the SCD2 materialization rebuilds history and repopulates its event ledger from landed evidence. Do not manually manufacture a checkpoint.
 
-The successful new-generation pipeline/checkpoint path automatically moves lifecycle state back to:
-
-```text
-ACTIVE
-```
-
-and finalizes the reset record as:
-
-```text
-COMPLETED
-```
-
-Then validate the normal reconciliation/DQ/dashboard checks before closing the incident.
+A successful new-generation pipeline/checkpoint path returns lifecycle to `ACTIVE` and finalizes the reset as `COMPLETED`. Then validate SCD2 invariants, reconciliation/DQ and downstream Gold/dashboard results.
 
 ## What not to do
 
-Do not use full reset for every bad row. Prefer repair/replay when the problem is bounded and the correct recovery can be proven without rebuilding the dataset.
-
-Do not delete old `PLATFORM_CONTROL` generation history. Generation rollover is what makes reset auditable and prevents stale checkpoints from being reused.
-
-Do not add arbitrary caller-provided table names to the reset command. The allowed cleanup set belongs in the domain repository's explicit `dbt/macros/reset_contract.sql`.
+- Do not use processing full reset for every bad row; prefer bounded repair/replay where correctness can be proven.
+- Do not delete old `PLATFORM_CONTROL` generation history.
+- Do not add arbitrary caller-provided relation names to the reset operation.
+- Do not use this operation to repair corrupt/missing Bronze evidence; that belongs to the ingestion recovery path.
