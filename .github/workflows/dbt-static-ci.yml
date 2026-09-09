@@ -56,3 +56,18 @@ jobs:
           grep -Fq "where is_current = true" dbt/models/silver_canonical/vehicle_status_current.sql
           if grep -Fq 'is_current' dbt/models/gold_marts/depot_fleet_status.sql; then exit 1; fi
           if grep -R -n -E 'load_strategy|scd1_merge|scd2_merge|scd2_snapshot|scd2_stream_task|checkpoint_kind' config contracts dbt/models; then exit 1; fi
+      - name: Assert v2 processing reset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=dbt/macros/reset_contract.sql
+          test -f "$FILE"
+          grep -Fq 'transport_vehicle_status_full_reset' "$FILE"
+          grep -Fq 'esf_execute_dataset_full_reset' "$FILE"
+          grep -Fq '.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY' "$FILE"
+          grep -Fq '.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS' "$FILE"
+          grep -Fq "'dev': 'DEV_TRANSPORT'" "$FILE"
+          grep -Fq 'ESF_SCHEMA_PREFIX' "$FILE"
+          grep -Fq "'bronze_preserved', TRUE" "$FILE"
+          if grep -Fq '.BRONZE.' "$FILE"; then exit 1; fi
+          if grep -Eq 'SILVER_STAGING|GOLD_MARTS|VEHICLE_STATUS_CURRENT' "$FILE"; then exit 1; fi
