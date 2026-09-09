@@ -18,4 +18,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate with clean framework v2
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@ed47b7215f36e71272bcd3ad32128f9d5065c128
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@7d3498f8b5ef48d868ea44aade62cf13e50e58f6

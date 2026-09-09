@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: ruizengalways/enterprise-snowflake-data-project-framework
-          ref: ed47b7215f36e71272bcd3ad32128f9d5065c128
+          ref: 7d3498f8b5ef48d868ea44aade62cf13e50e58f6
           path: framework
           persist-credentials: false
       - uses: actions/setup-python@v7.0.0
