@@ -9,19 +9,19 @@ transport_analytics:
       authenticator: "{{ env_var('DBT_AUTHENTICATOR', 'externalbrowser') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'GOLD_MARTS') }}"
       threads: 4
     ci:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
-      role: AR_TRANSPORT_CI
+      role: "{{ env_var('DBT_ROLE', 'AR_TRANSPORT_CI') }}"
       authenticator: "{{ env_var('DBT_AUTHENTICATOR', 'workload_identity') }}"
       workload_identity_provider: OIDC
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'GOLD_MARTS') }}"
       threads: 4
     uat:
       type: snowflake
@@ -33,7 +33,7 @@ transport_analytics:
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'GOLD_MARTS') }}"
       threads: 4
     prod:
       type: snowflake
@@ -45,5 +45,5 @@ transport_analytics:
       token: "{{ env_var('SNOWFLAKE_TOKEN') }}"
       database: "{{ env_var('DBT_DATABASE') }}"
       warehouse: "{{ env_var('DBT_WAREHOUSE') }}"
-      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'SILVER_STAGING') }}"
+      schema: "{{ env_var('DBT_DEFAULT_SCHEMA', 'GOLD_MARTS') }}"
       threads: 4

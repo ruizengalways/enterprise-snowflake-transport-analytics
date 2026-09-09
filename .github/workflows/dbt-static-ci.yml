@@ -1,17 +1,17 @@
-name: Transport dbt v2 CI
+name: Transport Silver + dbt CI
 
 on:
   pull_request:
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "silver_processing/**", "operations/**", ".github/workflows/dbt-static-ci.yml"]
   push:
     branches: [main]
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "silver_processing/**", "operations/**", ".github/workflows/dbt-static-ci.yml"]
 
 permissions:
   contents: read
 
 jobs:
-  dbt-offline:
+  static:
     runs-on: ubuntu-latest
     env:
       ESF_ENVIRONMENT: dev
@@ -19,7 +19,8 @@ jobs:
       SNOWFLAKE_USER: offline
       DBT_DATABASE: OFFLINE_TRANSPORT
       DBT_WAREHOUSE: OFFLINE_TRANSFORM
-      DBT_DEFAULT_SCHEMA: SILVER_STAGING
+      DBT_DEFAULT_SCHEMA: GOLD_MARTS
+      DBT_SILVER_SCHEMA: SILVER_CANONICAL
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -27,7 +28,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           repository: ruizengalways/enterprise-snowflake-data-project-framework
-          ref: 7d3498f8b5ef48d868ea44aade62cf13e50e58f6
+          ref: 3f264d2446493c6ddfb4c62815e3094f372b92a2
           path: framework
           persist-credentials: false
       - uses: actions/setup-python@v7.0.0
@@ -36,38 +37,55 @@ jobs:
           cache: pip
       - run: |
           python -m pip install dbt-core==1.12.3 dbt-snowflake==1.12.0
-          python -m pip install -e framework
-      - name: Validate metadata and parse readable models
+          python -m pip install ./framework
+
+      - name: Validate explicit Silver contracts
+        run: esf validate --project-root .
+
+      - name: Parse ordinary dbt Gold models
+        run: dbt parse --no-partial-parse --project-dir dbt --profiles-dir dbt
+
+      - name: Assert dbt begins at trusted Silver
         shell: bash
         run: |
           set -euo pipefail
-          python framework/validation/validate_metadata.py --project-root . --schema-dir framework/project_schema
-          VARS="$(python framework/scripts/render_dbt_vars.py --project-root . --schema-dir framework/project_schema)"
-          dbt deps --project-dir dbt --profiles-dir dbt
-          dbt parse --no-partial-parse --project-dir dbt --profiles-dir dbt --vars "$VARS"
-      - name: Assert domain readability and routing
+          test ! -e dbt/packages.yml
+          test ! -e dbt/models/silver_staging
+          test ! -e dbt/models/silver_canonical
+          test ! -e dbt/macros
+          if grep -R -n 'enterprise_snowflake_framework' dbt; then exit 1; fi
+          if grep -R -n 'BRONZE\.' dbt/models; then exit 1; fi
+          grep -Fq "source('silver_transport', 'vehicle_status_current')" dbt/models/gold_marts/depot_fleet_status.sql
+          grep -Fq "source('silver_transport', 'vehicle_position')" dbt/models/gold_marts/fct_vehicle_position.sql
+          grep -Fq 'SILVER_CANONICAL' dbt/models/sources.yml
+          grep -Fq 'DBT_DEFAULT_SCHEMA' dbt/profiles.yml
+
+      - name: Assert readable SCD2 implementation surface
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'strategy: scd2' config/datasets/vehicle_status.yml
-          grep -Fq 'strategy: append_only' config/datasets/vehicle_position.yml
-          grep -Fq 'type: dynamic_table' config/datasets/depot_fleet_status.yml
-          grep -Fq 'schema_version: 2' contracts/raw/vehicle_status.yml
-          grep -Fq "where is_current = true" dbt/models/silver_canonical/vehicle_status_current.sql
-          if grep -Fq 'is_current' dbt/models/gold_marts/depot_fleet_status.sql; then exit 1; fi
-          if grep -R -n -E 'load_strategy|scd1_merge|scd2_merge|scd2_snapshot|scd2_stream_task|checkpoint_kind' config contracts dbt/models; then exit 1; fi
-      - name: Assert v2 processing reset contract
+          FILE=silver_processing/vehicle_status/010_apply.sql
+          grep -Fq 'VEHICLE_STATUS_NEW_EVENTS' "$FILE"
+          grep -Fq 'VEHICLE_STATUS_AFFECTED_KEYS' "$FILE"
+          grep -Fq 'begin transaction' "$FILE"
+          grep -Fq 'VEHICLE_STATUS_HISTORY__EVENTS' "$FILE"
+          grep -Fq 'state_boundaries' "$FILE"
+          grep -Fq 'lead(source_updated_at)' "$FILE"
+          grep -Fq 'published_versions' "$FILE"
+          grep -Fq 'version_order' "$FILE"
+          grep -Fq 'next_boundary_at is null as is_current' "$FILE"
+          grep -Fq "source_operation = 'D'" "$FILE"
+          grep -Fq 'rollback' "$FILE"
+          grep -Fq 'where is_current = true' silver_processing/vehicle_status/001_objects.sql
+          grep -Fq 'pattern: scd2' silver_processing/vehicle_status/pipeline.yml
+          grep -Fq 'pattern: append' silver_processing/vehicle_position/pipeline.yml
+
+      - name: Assert processing reset preserves Bronze
         shell: bash
         run: |
           set -euo pipefail
-          FILE=dbt/macros/reset_contract.sql
-          test -f "$FILE"
-          grep -Fq 'transport_vehicle_status_full_reset' "$FILE"
-          grep -Fq 'esf_execute_dataset_full_reset' "$FILE"
-          grep -Fq '.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY' "$FILE"
-          grep -Fq '.SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS' "$FILE"
-          grep -Fq "'dev': 'DEV_TRANSPORT'" "$FILE"
-          grep -Fq 'ESF_SCHEMA_PREFIX' "$FILE"
-          grep -Fq "'bronze_preserved', TRUE" "$FILE"
-          if grep -Fq '.BRONZE.' "$FILE"; then exit 1; fi
-          if grep -Eq 'SILVER_STAGING|GOLD_MARTS|VEHICLE_STATUS_CURRENT' "$FILE"; then exit 1; fi
+          FILE=operations/reset_vehicle_status.sql
+          grep -Fq 'PROCESSING_FULL_RESET' "$FILE"
+          grep -Fq 'VEHICLE_STATUS_HISTORY__EVENTS' "$FILE"
+          grep -Fq "'bronze_preserved', true" "$FILE"
+          if grep -Eiq 'truncate[[:space:]]+table[^;]*BRONZE' "$FILE"; then exit 1; fi

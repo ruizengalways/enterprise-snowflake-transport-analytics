@@ -1,0 +1,27 @@
+version: 1
+pipeline:
+  id: vehicle_status
+  pattern: scd2
+  raw_contract: contracts/raw/vehicle_status.yml
+  input:
+    relation: BRONZE.VEHICLE_STATUS
+  output:
+    history: SILVER_CANONICAL.VEHICLE_STATUS_HISTORY
+    current: SILVER_CANONICAL.VEHICLE_STATUS_CURRENT
+  business_key:
+    - vehicle_id
+  event_order:
+    - source_updated_at
+    - source_sequence
+  idempotency_key:
+    - vehicle_id
+    - source_sequence
+  effective_at: source_updated_at
+  tracked_columns:
+    - status
+    - depot_id
+    - route_id
+  delete:
+    column: source_operation
+    values:
+      - D

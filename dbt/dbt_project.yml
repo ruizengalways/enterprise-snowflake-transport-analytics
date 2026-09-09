@@ -1,22 +1,15 @@
 name: transport_analytics
-version: 2.0.0
+version: 3.0.0
 config-version: 2
 profile: transport_analytics
 
 model-paths:
   - models
-macro-paths:
-  - macros
 
 models:
   transport_analytics:
-    silver_staging:
-      +schema: SILVER_STAGING
-    silver_canonical:
-      +schema: SILVER_CANONICAL
     gold_marts:
-      +schema: GOLD_MARTS
+      +materialized: view
 
 clean-targets:
   - target
-  - dbt_packages

@@ -1,21 +1,21 @@
-name: Metadata v2 CI
+name: Transport Contract CI
 
 on:
   pull_request:
-    paths: ["config/**", "contracts/**", ".github/workflows/metadata-ci.yml"]
+    paths: ["config/**", "contracts/**", "silver_processing/**", ".github/workflows/metadata-ci.yml"]
   push:
     branches: [main]
-    paths: ["config/**", "contracts/**", ".github/workflows/metadata-ci.yml"]
+    paths: ["config/**", "contracts/**", "silver_processing/**", ".github/workflows/metadata-ci.yml"]
 
 permissions:
   contents: read
 
 jobs:
-  metadata:
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - name: Validate with clean framework v2
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@7d3498f8b5ef48d868ea44aade62cf13e50e58f6
+      - name: Validate project, RAW and Silver contracts
+        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@3f264d2446493c6ddfb4c62815e3094f372b92a2

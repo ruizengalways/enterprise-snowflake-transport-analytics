@@ -1,0 +1,12 @@
+version: 1
+pipeline:
+  id: vehicle_position
+  pattern: append
+  raw_contract: contracts/raw/vehicle_position.yml
+  input:
+    relation: BRONZE.VEHICLE_POSITION
+  output:
+    relation: SILVER_CANONICAL.VEHICLE_POSITION
+  idempotency_key:
+    - vehicle_id
+    - event_timestamp

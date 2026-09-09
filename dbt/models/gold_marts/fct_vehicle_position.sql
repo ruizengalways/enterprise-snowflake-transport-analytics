@@ -7,4 +7,4 @@ select
     longitude,
     route_id,
     ingested_at
-from {{ source('bronze_transport', 'vehicle_position') }}
+from {{ source('silver_transport', 'vehicle_position') }}
