@@ -1,0 +1,18 @@
+schema_version: 1
+
+pipeline:
+  id: vehicle_status
+  pattern: scd2
+  raw_contract: contracts/raw/fleet_mssql/vehicle_status.yml
+
+  input:
+    relation: BRONZE.FLEET_MSSQL_VEHICLE_STATUS
+
+  output:
+    history: SILVER.FLEET_MSSQL_VEHICLE_STATUS_HISTORY
+    current: SILVER.FLEET_MSSQL_VEHICLE_STATUS_CURRENT
+
+  tracked_columns:
+    - status
+    - depot_id
+    - route_id
