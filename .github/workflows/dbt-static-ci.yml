@@ -2,10 +2,10 @@ name: Transport dbt legacy-runtime CI
 
 on:
   pull_request:
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "scripts/render_legacy_dbt_vars.py", ".github/workflows/dbt-static-ci.yml"]
   push:
     branches: [main]
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "scripts/render_legacy_dbt_vars.py", ".github/workflows/dbt-static-ci.yml"]
 
 permissions:
   contents: read
@@ -34,9 +34,12 @@ jobs:
         run: |
           set -euo pipefail
           # Current Framework contracts are validated independently by Framework Contract CI.
-          # This job intentionally validates only the still-active legacy dbt runtime during migration.
+          # This job validates only the still-active legacy dbt runtime during migration.
+          # The transition renderer preserves the old dbt package's vars input without
+          # reintroducing its obsolete metadata validator.
+          VARS="$(python scripts/render_legacy_dbt_vars.py)"
           dbt deps --project-dir dbt --profiles-dir dbt
-          dbt parse --no-partial-parse --project-dir dbt --profiles-dir dbt
+          dbt parse --no-partial-parse --project-dir dbt --profiles-dir dbt --vars "$VARS"
       - name: Assert migration boundary and domain readability
         shell: bash
         run: |
@@ -51,6 +54,7 @@ jobs:
           grep -Fq 'strategy: scd2' config/datasets/vehicle_status.yml
           grep -Fq 'strategy: append_only' config/datasets/vehicle_position.yml
           grep -Fq 'type: dynamic_table' config/datasets/depot_fleet_status.yml
+          grep -Fq 'transition-only dbt vars' scripts/render_legacy_dbt_vars.py
 
           grep -Fq "where is_current = true" dbt/models/silver_canonical/vehicle_status_current.sql
           if grep -Fq 'is_current' dbt/models/gold_marts/depot_fleet_status.sql; then exit 1; fi
