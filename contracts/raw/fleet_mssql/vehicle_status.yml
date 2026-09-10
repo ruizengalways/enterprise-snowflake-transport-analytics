@@ -1,0 +1,56 @@
+schema_version: 2
+contract:
+  source_system: fleet_mssql
+  entity: vehicle_status
+  grain: one row per vehicle identifier and source change
+  business_key:
+    - vehicle_id
+  source_timestamp: source_updated_at
+  columns:
+    - name: vehicle_id
+      type: VARCHAR
+      nullable: false
+      classification: internal
+    - name: status
+      type: VARCHAR
+      nullable: true
+      classification: internal
+    - name: depot_id
+      type: VARCHAR
+      nullable: true
+      classification: internal
+    - name: route_id
+      type: VARCHAR
+      nullable: true
+      classification: internal
+    - name: source_updated_at
+      type: TIMESTAMP_NTZ
+      nullable: false
+      classification: internal
+    - name: source_operation
+      type: VARCHAR
+      nullable: false
+      classification: internal
+    - name: source_sequence
+      type: NUMBER
+      nullable: false
+      classification: internal
+    - name: ingested_at
+      type: TIMESTAMP_NTZ
+      nullable: false
+      classification: internal
+  change_semantics:
+    mode: cdc
+    operation_column: source_operation
+    sequence_column: source_sequence
+    delete_semantics: tombstone
+    delete_values:
+      - D
+  capture_fidelity: full_change
+  ordering_columns:
+    - source_updated_at
+    - source_sequence
+  idempotency_key:
+    - vehicle_id
+    - source_sequence
+  breaking_change_policy: versioned_contract
