@@ -3,7 +3,7 @@ schema_version: 2
 dataset:
   id: vehicle_position
   owner_team: transport-data
-  raw_contract: contracts/raw/vehicle_position.yml
+  raw_contract: contracts/raw/gtfs_realtime/vehicle_position.yml
   load:
     strategy: append_only
     watermark_column: event_timestamp
