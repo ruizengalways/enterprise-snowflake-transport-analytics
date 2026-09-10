@@ -1,143 +1,135 @@
-# Current Context — Transport v2
+# Current Context — Transport Analytics
 
-Updated: 2026-09-09
+Updated: 2026-09-11
 
-## Canonical state
+## Current state
 
-Transport Hybrid Framework v2 is merged to `main`. The v2 baseline merge is:
+Transport is migrating from the earlier Hybrid Framework v2 shape to the current Enterprise Snowflake Data Project Framework 0.25 architecture.
 
-```text
-563d8883a63faa606e06e4ac12e97b840e327e87
-```
-
-The enterprise adapter pins the merged Framework v2 baseline:
+The current Framework release being adopted is pinned by immutable SHA:
 
 ```text
-7d3498f8b5ef48d868ea44aade62cf13e50e58f6
-Framework v2 CI #193: SUCCESS
+Framework 0.25
+b81d0150c96e8bf5bbacee11438971be5df676b6
 ```
 
-Transport PR #6 is the canonical v2 migration. Earlier stacked PRs #2–#5 are closed as superseded; their old framework pins and combined strategy vocabulary are historical only.
+That Framework SHA passed its static main CI, but its automatic Snowflake Framework Certification workflow was **SKIPPED** and produced no certification artifact. Do not describe it as live Snowflake-certified.
 
-## Architectural rule
+## Adoption phase
 
-Transport keeps a **framework-independent portable core**:
+The current migration is deliberately staged. Phase 1 adopts only the reviewed **metadata/validation boundary**:
 
 ```text
-portable Transport core
-  contracts/
-  config/
-  standalone/
-  domain docs
-        ↑
-optional enterprise adapter
-  dbt/
-  enterprise workflows
-        ↑
-enterprise framework/platform
+config/project.yml
+config/sources/<source>.yml
+contracts/raw/<source>/<dataset>.yml
 ```
 
-Source contracts and synthetic data generation must work without Framework, `PLATFORM_CONTROL`, Terraform, enterprise WIF/RBAC or enterprise database/warehouse naming.
+It does not replace production/reference Silver SQL, initialize the current Control Plane, or switch the deployment workflow.
 
-## Current datasets
+Current source boundaries are:
+
+```text
+fleet_mssql
+  -> vehicle_status
+  -> pattern: scd2
+  -> contracts/raw/fleet_mssql/vehicle_status.yml
+
+gtfs_realtime
+  -> vehicle_position
+  -> pattern: append
+  -> contracts/raw/gtfs_realtime/vehicle_position.yml
+```
+
+The existing reviewed RAW contract semantics are preserved; no key/order/delete/business rule is inferred during the path migration.
+
+## Legacy metadata during transition
+
+`config/datasets/*.yml` predates the current Framework source-manifest contract. Those files remain temporarily as human migration references only and must not become a second active machine contract.
+
+`depot_fleet_status.yml` is intentionally not converted to `config/sources`: it describes downstream Gold aggregation rather than a Bronze-to-Silver logical dataset.
+
+See `config/datasets/README.md` and `docs/FRAMEWORK_025_ADOPTION.md`.
+
+## Current runtime remains unchanged in phase 1
+
+The existing dbt Silver implementation remains the comparison/reference runtime:
+
+```text
+dbt/models/silver_staging/
+dbt/models/silver_canonical/
+```
+
+Current dataset semantics remain:
 
 ```text
 vehicle_status
-  source: full-change CDC evidence
-  load.strategy: scd2
-  authoritative object: SILVER_CANONICAL vehicle_status_history
-  current consumer surface: vehicle_status_current view
+  source: fleet_mssql full-change CDC evidence
+  business key: vehicle_id
+  ordering: source_updated_at, source_sequence
+  tombstone delete: source_operation = D
+  existing reference output: SILVER_CANONICAL vehicle_status history/current
 
 vehicle_position
-  source: event/append evidence
-  load.strategy: append_only
+  source: gtfs_realtime full-event append evidence
+  ordering/idempotency: vehicle_id + event_timestamp
+  existing reference output: SILVER_CANONICAL vehicle_position
 
 depot_fleet_status
-  Gold readable aggregation SQL
-  materialization.type: dynamic_table
-  runtime.mode: snowflake_managed
-  refresh_mode: adaptive
+  Gold business aggregation
+  current implementation: dbt / Snowflake Dynamic Table
 ```
 
-Business aggregation remains ordinary SQL; metadata describes execution mechanics only.
+Phase 1 does not edit these dbt models, the reset macro, the Gold model, or the standalone simulator.
+
+## CI boundary
+
+Current Framework contract validation is credential-free and pinned to exact Framework 0.25 SHA:
+
+```bash
+esf validate --project-root .
+```
+
+The legacy dbt runtime has a separate offline parse/readability job. It no longer invokes the obsolete Framework v2 metadata validator; current machine contracts are owned by Framework Contract CI.
+
+Live PR workspace execution is opt-in and pinned to the same Framework 0.25 SHA. It runs only when:
+
+```text
+ESF_PR_WORKSPACE_ENABLED=true
+```
+
+and the `ci` GitHub Environment provides `SNOWFLAKE_ACCOUNT` plus an account-scoped `SNOWFLAKE_OIDC_AUDIENCE`. Without that configuration the live workspace gate is expected to be skipped, not treated as static acceptance evidence.
 
 ## Portable synthetic source
 
-The framework-free path remains under `standalone/`.
+The Framework-independent simulator remains under `standalone/` and is deliberately outside the enterprise Control Plane/runtime contract.
 
-Bulk deterministic source data:
+The simulator models source evidence, not SCD2 target behavior. It remains useful for later candidate comparison because it can generate deterministic CDC and append events without requiring the Framework.
 
-```text
-standalone/sql/00_setup.sql
-standalone/sql/10_generate_vehicle_status.sql
-standalone/sql/20_generate_vehicle_position.sql
-standalone/sql/90_validate.sql
-```
+## Existing reset adapter
 
-Stateful incremental source simulator:
+The earlier dbt processing-reset/generation contract remains present while the dbt Silver reference implementation remains active. Phase 1 does not reinterpret or delete it.
 
-```text
-standalone/sql/30_incremental_vehicle_status_simulator.sql
+When current Framework Silver candidates are introduced, reset/replay behavior must be reviewed separately against the candidate implementation rather than assuming the old dbt macro is automatically portable.
 
-DEMO_TRANSPORT.VEHICLE_STATUS_SIM_CDC
-DEMO_TRANSPORT.VEHICLE_STATUS_SIM_CURRENT
-DEMO_TRANSPORT.VEHICLE_STATUS_SIM_STATE
-DEMO_TRANSPORT.RESET_VEHICLE_STATUS_SIMULATOR()
-DEMO_TRANSPORT.ADVANCE_VEHICLE_STATUS_SIMULATOR()
-```
+## Next adoption phase
 
-The simulator models source CDC only. It does not implement SCD2; a consuming pipeline determines target semantics. Reset-and-replay is deterministic and later batches include bounded updates and delete tombstones.
-
-## Processing reset enterprise adapter
-
-Generation-aware processing reset is exposed through `dbt/macros/reset_contract.sql` and the domain recovery boundary. It preserves ingestion-owned Bronze evidence and clears only the persisted SCD2 processing state:
+After phase 1 static CI is green and merged:
 
 ```text
-AR_TRANSPORT_RECOVERY
-ACTIVE generation N
- -> RESETTING
- -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY
- -> truncate SILVER_CANONICAL.VEHICLE_STATUS_HISTORY__ESF_EVENTS
- -> generation N+1 / READY_FOR_INITIAL_LOAD
- -> rebuild from retained Bronze evidence
- -> ACTIVE
+1. scaffold current Framework Silver candidate for fleet_mssql.vehicle_status (scd2)
+2. scaffold current Framework Silver candidate for gtfs_realtime.vehicle_position (append)
+3. preserve existing dbt Silver as comparison baseline
+4. compare/reconcile candidate outputs against the existing reference outputs
+5. only then adopt current Control Plane / apply-once deployment and perform explicit cutover
 ```
 
-The current/staging views are not truncated and the derived Gold Dynamic Table is not treated as an ordinary table. The reset macro rejects prefixed PR/personal workspaces and mismatched environment databases. Repair/replay remains separate from reset. See `docs/RESET_RUNBOOK.md`.
+Do not move `depot_fleet_status` into Silver merely because it is a Dynamic Table. It remains Gold.
 
-## Verified static state
+## Live acceptance gates
 
-The v2 migration was verified before merge with:
+No static CI result is live Snowflake proof.
 
-```text
-Metadata v2 CI #43: SUCCESS
-Transport dbt v2 CI #60: SUCCESS
-Standalone SQL CI #14: SUCCESS
-```
+The live path still requires configured Snowflake/GitHub Environment identity. Once available, prove candidate Silver behavior, Control migrations, deployment history, DQ/reconciliation and release/cutover on the exact reviewed project/framework SHAs.
 
-The PR Workspace job failed closed before Snowflake connection because GitHub Environment `ci` did not define `SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_OIDC_AUDIENCE`. OIDC token request, Snowflake connection and workspace SQL were not executed.
-
-## Remaining acceptance gates
-
-Portable live acceptance:
-
-```text
-plain Snowflake database
-no Framework / PLATFORM_CONTROL
--> execute standalone setup + simulator SQL
--> RESET + ADVANCE batches
--> verify deterministic I/U/D source evolution
-```
-
-Enterprise live acceptance:
-
-```text
-configure DEV Snowflake + GitHub Environment WIF
--> prove PR workspace lifecycle
--> deploy platform/control-plane prerequisites
--> run live vehicle_status SCD2 replay/update/delete/reinsert/late-arrival cases
--> prove processing reset/generation rollover and recovery-role isolation
--> run Gold Dynamic Table and stable deployment
-```
-
-A complete same-SHA DEV -> UAT -> PROD promotion orchestrator is intentionally deferred until the live DEV deployment path is proven. Static CI must not be described as live Snowflake proof.
+Until then, preserve the current runtime and advance only reviewable, fail-closed migration steps.

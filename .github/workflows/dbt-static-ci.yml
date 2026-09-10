@@ -1,11 +1,11 @@
-name: Transport dbt v2 CI
+name: Transport dbt legacy-runtime CI
 
 on:
   pull_request:
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "scripts/render_legacy_dbt_vars.py", ".github/workflows/dbt-static-ci.yml"]
   push:
     branches: [main]
-    paths: ["dbt/**", "config/**", "contracts/**", ".github/workflows/dbt-static-ci.yml"]
+    paths: ["dbt/**", "config/**", "contracts/**", "scripts/render_legacy_dbt_vars.py", ".github/workflows/dbt-static-ci.yml"]
 
 permissions:
   contents: read
@@ -24,35 +24,38 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@v7.0.1
-        with:
-          repository: ruizengalways/enterprise-snowflake-data-project-framework
-          ref: 7d3498f8b5ef48d868ea44aade62cf13e50e58f6
-          path: framework
-          persist-credentials: false
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.13"
-          cache: pip
-      - run: |
-          python -m pip install dbt-core==1.12.3 dbt-snowflake==1.12.0
-          python -m pip install -e framework
-      - name: Validate metadata and parse readable models
+      - name: Install dbt
+        run: python -m pip install dbt-core==1.12.3 dbt-snowflake==1.12.0
+      - name: Parse existing dbt runtime offline
         shell: bash
         run: |
           set -euo pipefail
-          python framework/validation/validate_metadata.py --project-root . --schema-dir framework/project_schema
-          VARS="$(python framework/scripts/render_dbt_vars.py --project-root . --schema-dir framework/project_schema)"
+          # Current Framework contracts are validated independently by Framework Contract CI.
+          # This job validates only the still-active legacy dbt runtime during migration.
+          # The transition renderer preserves the old dbt package's vars input without
+          # reintroducing its obsolete metadata validator.
+          VARS="$(python scripts/render_legacy_dbt_vars.py)"
           dbt deps --project-dir dbt --profiles-dir dbt
           dbt parse --no-partial-parse --project-dir dbt --profiles-dir dbt --vars "$VARS"
-      - name: Assert domain readability and routing
+      - name: Assert migration boundary and domain readability
         shell: bash
         run: |
           set -euo pipefail
+          # Current machine contracts are source-scoped.
+          grep -Fq 'pattern: scd2' config/sources/fleet_mssql.yml
+          grep -Fq 'pattern: append' config/sources/gtfs_realtime.yml
+          grep -Fq 'schema_version: 2' contracts/raw/fleet_mssql/vehicle_status.yml
+          grep -Fq 'schema_version: 2' contracts/raw/gtfs_realtime/vehicle_position.yml
+
+          # Legacy metadata remains reference-only until Silver candidate comparison is complete.
           grep -Fq 'strategy: scd2' config/datasets/vehicle_status.yml
           grep -Fq 'strategy: append_only' config/datasets/vehicle_position.yml
           grep -Fq 'type: dynamic_table' config/datasets/depot_fleet_status.yml
-          grep -Fq 'schema_version: 2' contracts/raw/vehicle_status.yml
+          grep -Fq 'transition-only dbt vars' scripts/render_legacy_dbt_vars.py
+
           grep -Fq "where is_current = true" dbt/models/silver_canonical/vehicle_status_current.sql
           if grep -Fq 'is_current' dbt/models/gold_marts/depot_fleet_status.sql; then exit 1; fi
           if grep -R -n -E 'load_strategy|scd1_merge|scd2_merge|scd2_snapshot|scd2_stream_task|checkpoint_kind' config contracts dbt/models; then exit 1; fi

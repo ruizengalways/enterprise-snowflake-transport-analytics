@@ -1,21 +1,55 @@
-name: Metadata v2 CI
+name: Framework Contract CI
 
 on:
   pull_request:
-    paths: ["config/**", "contracts/**", ".github/workflows/metadata-ci.yml"]
+    paths:
+      - "config/**"
+      - "contracts/**"
+      - "silver_processing/**"
+      - ".github/workflows/metadata-ci.yml"
   push:
     branches: [main]
-    paths: ["config/**", "contracts/**", ".github/workflows/metadata-ci.yml"]
+    paths:
+      - "config/**"
+      - "contracts/**"
+      - "silver_processing/**"
+      - ".github/workflows/metadata-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
-  metadata:
+  contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout domain project
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - name: Validate with clean framework v2
-        uses: ruizengalways/enterprise-snowflake-data-project-framework/.github/actions/validate-metadata@7d3498f8b5ef48d868ea44aade62cf13e50e58f6
+
+      - name: Checkout immutable Framework 0.25 revision
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ruizengalways/enterprise-snowflake-data-project-framework
+          ref: b81d0150c96e8bf5bbacee11438971be5df676b6
+          persist-credentials: false
+          path: framework
+
+      - name: Verify Framework revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C framework rev-parse HEAD)" = "b81d0150c96e8bf5bbacee11438971be5df676b6"
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: framework/pyproject.toml
+
+      - name: Install Framework
+        run: python -m pip install ./framework
+
+      - name: Validate current Framework contracts
+        run: esf validate --project-root .

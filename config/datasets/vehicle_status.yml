@@ -3,7 +3,7 @@ schema_version: 2
 dataset:
   id: vehicle_status
   owner_team: transport-data
-  raw_contract: contracts/raw/vehicle_status.yml
+  raw_contract: contracts/raw/fleet_mssql/vehicle_status.yml
   load:
     strategy: scd2
     business_key:
