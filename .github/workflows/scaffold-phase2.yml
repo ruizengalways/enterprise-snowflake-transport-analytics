@@ -42,11 +42,14 @@ jobs:
           esf scaffold append vehicle_position --source gtfs_realtime --project-root .
           esf validate --project-root .
           test ! -e control_plane
-          changed="$(git diff --name-only -- silver_processing)"
-          test -n "$changed"
-          if git diff --name-only | grep -Ev '^silver_processing/' >/dev/null; then
+
+          # Remove the temporary Framework checkout before checking the domain working tree.
+          rm -rf framework
+          status="$(git status --porcelain --untracked-files=all)"
+          test -n "$status"
+          printf '%s\n' "$status"
+          if printf '%s\n' "$status" | awk '{print $2}' | grep -Ev '^silver_processing/' >/dev/null; then
             echo "One-time scaffold modified files outside silver_processing/." >&2
-            git diff --name-only >&2
             exit 1
           fi
       - name: Commit generated source code to migration branch
