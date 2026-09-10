@@ -82,15 +82,23 @@ depot_fleet_status
 
 Phase 1 does not edit these dbt models, the reset macro, the Gold model, or the standalone simulator.
 
-## Contract CI
+## CI boundary
 
-`.github/workflows/metadata-ci.yml` is being replaced with current Framework validation pinned to exact Framework 0.25 SHA and runs:
+Current Framework contract validation is credential-free and pinned to exact Framework 0.25 SHA:
 
 ```bash
 esf validate --project-root .
 ```
 
-This is credential-free validation only.
+The legacy dbt runtime has a separate offline parse/readability job. It no longer invokes the obsolete Framework v2 metadata validator; current machine contracts are owned by Framework Contract CI.
+
+Live PR workspace execution is opt-in and pinned to the same Framework 0.25 SHA. It runs only when:
+
+```text
+ESF_PR_WORKSPACE_ENABLED=true
+```
+
+and the `ci` GitHub Environment provides `SNOWFLAKE_ACCOUNT` plus an account-scoped `SNOWFLAKE_OIDC_AUDIENCE`. Without that configuration the live workspace gate is expected to be skipped, not treated as static acceptance evidence.
 
 ## Portable synthetic source
 
@@ -106,7 +114,7 @@ When current Framework Silver candidates are introduced, reset/replay behavior m
 
 ## Next adoption phase
 
-After phase 1 metadata CI is green and merged:
+After phase 1 static CI is green and merged:
 
 ```text
 1. scaffold current Framework Silver candidate for fleet_mssql.vehicle_status (scd2)
