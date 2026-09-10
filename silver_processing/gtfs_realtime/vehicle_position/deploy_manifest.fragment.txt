@@ -1,0 +1,7 @@
+silver_processing/gtfs_realtime/vehicle_position/001_objects.sql
+silver_processing/gtfs_realtime/vehicle_position/010_apply.sql
+silver_processing/gtfs_realtime/vehicle_position/015_replay.sql
+silver_processing/gtfs_realtime/vehicle_position/020_validate.sql
+silver_processing/gtfs_realtime/vehicle_position/030_task.sql
+silver_processing/gtfs_realtime/vehicle_position/040_register.sql
+silver_processing/gtfs_realtime/vehicle_position/050_publish.sql

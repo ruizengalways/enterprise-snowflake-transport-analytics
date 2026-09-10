@@ -1,0 +1,2 @@
+-- gtfs_realtime.vehicle_position v1: initial implementation has no prior active version to compare.
+-- Candidate versions generate active-vs-candidate checks in this file.

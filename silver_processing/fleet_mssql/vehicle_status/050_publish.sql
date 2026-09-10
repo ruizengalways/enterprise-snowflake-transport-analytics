@@ -1,0 +1,10 @@
+-- Initial publication is create-only. If the stable name unexpectedly exists,
+-- fail rather than replace an object whose ownership or grants are unknown.
+CREATE VIEW SILVER.FLEET_MSSQL_VEHICLE_STATUS_HISTORY AS
+SELECT *
+FROM SILVER.FLEET_MSSQL_VEHICLE_STATUS_V1_HISTORY;
+
+CREATE VIEW SILVER.FLEET_MSSQL_VEHICLE_STATUS_CURRENT AS
+SELECT *
+FROM SILVER.FLEET_MSSQL_VEHICLE_STATUS_V1_HISTORY
+WHERE IS_ACTIVE = TRUE;

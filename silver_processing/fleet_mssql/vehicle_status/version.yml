@@ -1,0 +1,15 @@
+schema_version: 1
+
+version:
+  dataset: fleet_mssql.vehicle_status
+  id: v1
+  initial_status: active
+  activation: explicit
+  execution_model: stream_task
+  provenance:
+    framework_version: 0.26.0
+    template_id: scd2_stream_task
+    template_revision: 3
+    template_digest: sha256:13f4e0cd0b22091ec89bff21b85bef57aaf66e79cbabcf1cd85ef4006b57da36
+  task:
+    warehouse: WH_TRANSPORT_TRANSFORM
