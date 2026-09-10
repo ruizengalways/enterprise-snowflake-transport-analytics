@@ -1,0 +1,8 @@
+schema_version: 1
+source:
+  id: fleet_mssql
+  owner: transport-data
+datasets:
+  vehicle_status:
+    pattern: scd2
+    raw_contract: contracts/raw/fleet_mssql/vehicle_status.yml
