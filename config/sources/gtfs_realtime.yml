@@ -1,0 +1,8 @@
+schema_version: 1
+source:
+  id: gtfs_realtime
+  owner: transport-data
+datasets:
+  vehicle_position:
+    pattern: append
+    raw_contract: contracts/raw/gtfs_realtime/vehicle_position.yml
