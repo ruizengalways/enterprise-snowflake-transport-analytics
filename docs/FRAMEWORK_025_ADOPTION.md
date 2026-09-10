@@ -36,7 +36,7 @@ gtfs_realtime.vehicle_position
   RAW: contracts/raw/gtfs_realtime/vehicle_position.yml
 ```
 
-The previous flat RAW paths are removed so `esf validate` cannot accidentally validate the same contract twice or fail on a non-source-scoped RAW location.
+The previous flat RAW paths are removed so `esf validate` has one authoritative source-scoped contract location.
 
 The old `config/datasets/*.yml` files remain temporarily as human migration references only. Their Bronze-to-Silver entries point at the new RAW paths, but they are no longer the authoritative Framework contract.
 
@@ -44,7 +44,7 @@ The old `config/datasets/*.yml` files remain temporarily as human migration refe
 
 ## CI boundary
 
-Metadata CI is pinned to the immutable Framework 0.25 merge SHA:
+Current Framework contract validation is pinned to immutable Framework 0.25 merge SHA:
 
 ```text
 b81d0150c96e8bf5bbacee11438971be5df676b6
@@ -56,11 +56,21 @@ and runs:
 esf validate --project-root .
 ```
 
-This phase does not connect to Snowflake, deploy Control migrations, or execute/scaffold Silver.
+The existing dbt runtime has a separate credential-free CI job that only installs dbt, resolves packages, parses the still-active dbt project offline, and checks migration/readability invariants. It intentionally does **not** run the obsolete Framework v2 metadata validator.
+
+Live PR workspaces are a separate opt-in gate. `.github/workflows/pr-workspace.yml` is pinned to the same Framework 0.25 SHA and runs only when the repository variable below is explicitly enabled:
+
+```text
+ESF_PR_WORKSPACE_ENABLED=true
+```
+
+The `ci` GitHub Environment must then also define `SNOWFLAKE_ACCOUNT` and an account-scoped `SNOWFLAKE_OIDC_AUDIENCE`. Until those live credentials/configuration exist, PR workspace execution should be skipped rather than reported as a static code failure.
+
+Phase 1 itself does not connect to Snowflake, deploy Control migrations, or execute/scaffold Silver.
 
 ## What remains unchanged in phase 1
 
-The following are intentionally unchanged:
+The following runtime code is intentionally unchanged:
 
 ```text
 dbt/models/silver_staging/**
@@ -78,8 +88,8 @@ That means phase 1 is a metadata/validation adoption, **not** a production runti
 After phase 1 is merged and stable, create current Framework Silver candidates for:
 
 ```text
-fleet_mssql.vehicle_status   -> scd2
-gtfs_realtime.vehicle_position -> append
+fleet_mssql.vehicle_status      -> scd2
+gtfs_realtime.vehicle_position  -> append
 ```
 
 The generated ownership units must be normal Framework source code under `silver_processing/`; existing dbt Silver models must not be deleted in the same step.
