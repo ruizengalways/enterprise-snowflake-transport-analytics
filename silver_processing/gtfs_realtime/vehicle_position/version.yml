@@ -1,0 +1,15 @@
+schema_version: 1
+
+version:
+  dataset: gtfs_realtime.vehicle_position
+  id: v1
+  initial_status: active
+  activation: explicit
+  execution_model: stream_task
+  provenance:
+    framework_version: 0.27.0
+    template_id: append_stream_task
+    template_revision: 3
+    template_digest: sha256:a43c4b7151c1a8045bf489423a77c935c255207dbf992e43ed8e982a1e128fa0
+  task:
+    warehouse: WH_TRANSPORT_TRANSFORM

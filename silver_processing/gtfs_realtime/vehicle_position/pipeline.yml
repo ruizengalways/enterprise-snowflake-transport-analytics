@@ -1,0 +1,12 @@
+schema_version: 1
+
+pipeline:
+  id: vehicle_position
+  pattern: append
+  raw_contract: contracts/raw/gtfs_realtime/vehicle_position.yml
+
+  input:
+    relation: BRONZE.GTFS_REALTIME_VEHICLE_POSITION
+
+  output:
+    relation: SILVER.GTFS_REALTIME_VEHICLE_POSITION

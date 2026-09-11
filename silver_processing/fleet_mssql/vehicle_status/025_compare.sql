@@ -1,0 +1,2 @@
+-- fleet_mssql.vehicle_status v1: initial implementation has no prior active version to compare.
+-- Candidate versions generate active-vs-candidate checks in this file.

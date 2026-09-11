@@ -1,0 +1,17 @@
+-- gtfs_realtime.vehicle_position v1: versioned Silver table.
+-- This is a new version-owned name. CREATE is intentionally fail-closed so an unexpected
+-- pre-existing object is investigated instead of silently adopted or replaced.
+
+CREATE TABLE SILVER.GTFS_REALTIME_VEHICLE_POSITION_V1 (
+    VEHICLE_ID VARCHAR NOT NULL,
+    EVENT_TIMESTAMP TIMESTAMP_NTZ NOT NULL,
+    LATITUDE FLOAT NOT NULL,
+    LONGITUDE FLOAT NOT NULL,
+    ROUTE_ID VARCHAR,
+    INGESTED_AT TIMESTAMP_NTZ NOT NULL,
+    ESF_LOADED_AT TIMESTAMP_LTZ NOT NULL DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE STREAM BRONZE.GTFS_REALTIME_VEHICLE_POSITION_V1_STREAM
+    ON TABLE BRONZE.GTFS_REALTIME_VEHICLE_POSITION
+    APPEND_ONLY = FALSE;
