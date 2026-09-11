@@ -1,0 +1,132 @@
+name: One-time Framework 0.27 Silver shadow scaffold
+
+on:
+  push:
+    branches: [migration/framework-027-silver-shadow]
+    paths: [.github/workflows/scaffold-framework-027-shadow.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Transport domain
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: migration/framework-027-silver-shadow
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Checkout exact Framework 0.27 merge
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ruizengalways/enterprise-snowflake-data-project-framework
+          ref: d46b57e6bfc71e07a4c34c9a5f994f4a682fb7c8
+          path: .framework-src
+          persist-credentials: false
+
+      - name: Install exact Framework and validate existing domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install ./.framework-src
+          esf validate --project-root .
+
+      - name: Generate only the two reviewed shadow Silver ownership units
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e silver_processing/fleet_mssql/vehicle_status
+          test ! -e silver_processing/gtfs_realtime/vehicle_position
+
+          esf scaffold scd2 vehicle_status \
+            --source fleet_mssql \
+            --project-root .
+
+          esf scaffold append vehicle_position \
+            --source gtfs_realtime \
+            --project-root .
+
+          esf validate --project-root .
+
+      - name: Verify 0.27 provenance and migration-critical semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          expected = {
+              Path('silver_processing/fleet_mssql/vehicle_status/version.yml'): ('scd2_stream_task', 4),
+              Path('silver_processing/gtfs_realtime/vehicle_position/version.yml'): ('append_stream_task', 3),
+          }
+          for path, (template_id, revision) in expected.items():
+              doc = yaml.safe_load(path.read_text(encoding='utf-8'))
+              provenance = doc['version']['provenance']
+              assert provenance['framework_version'] == '0.27.0', (path, provenance)
+              assert provenance['template_id'] == template_id, (path, provenance)
+              assert provenance['template_revision'] == revision, (path, provenance)
+          PY
+
+          status_apply=silver_processing/fleet_mssql/vehicle_status/010_apply.sql
+          status_replay=silver_processing/fleet_mssql/vehicle_status/015_replay.sql
+          position_apply=silver_processing/gtfs_realtime/vehicle_position/010_apply.sql
+          position_replay=silver_processing/gtfs_realtime/vehicle_position/015_replay.sql
+
+          grep -Fq 'E_IDEMPOTENCY_CONFLICT EXCEPTION' "$status_apply"
+          grep -Fq 'IS NOT DISTINCT FROM' "$status_apply"
+          grep -Fq 'E_IDEMPOTENCY_CONFLICT EXCEPTION' "$status_replay"
+          grep -Fq 'IS NOT DISTINCT FROM' "$status_replay"
+          grep -Fq "B.INGESTED_AT, 'INSERT', FALSE" "$status_replay"
+          grep -Fq "UPPER(COALESCE(TO_VARCHAR(E.SOURCE_OPERATION), '')) IN ('D')" "$status_replay"
+          ! grep -Fq "'DELETE', 'INSERT'" "$status_replay"
+
+          grep -Fq 'E_IDEMPOTENCY_CONFLICT EXCEPTION' "$position_apply"
+          grep -Fq 'IS NOT DISTINCT FROM' "$position_apply"
+          grep -Fq 'E_IDEMPOTENCY_CONFLICT EXCEPTION' "$position_replay"
+          grep -Fq 'IS NOT DISTINCT FROM' "$position_replay"
+
+      - name: Enforce shadow-only write scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .framework-src
+          python - <<'PY'
+          import subprocess
+
+          lines = subprocess.check_output(
+              ['git', 'status', '--porcelain', '--untracked-files=all'], text=True
+          ).splitlines()
+          allowed = (
+              'silver_processing/fleet_mssql/vehicle_status/',
+              'silver_processing/gtfs_realtime/vehicle_position/',
+          )
+          unexpected = []
+          for line in lines:
+              path = line[3:]
+              if not path.startswith(allowed):
+                  unexpected.append(line)
+          if unexpected:
+              raise SystemExit('unexpected scaffold writes:\n' + '\n'.join(unexpected))
+          if not lines:
+              raise SystemExit('scaffold produced no files')
+          PY
+
+      - name: Commit generated shadow source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            silver_processing/fleet_mssql/vehicle_status \
+            silver_processing/gtfs_realtime/vehicle_position
+          git commit -m "feat: add Framework 0.27 Silver shadow implementations"
+          git push origin HEAD:migration/framework-027-silver-shadow
